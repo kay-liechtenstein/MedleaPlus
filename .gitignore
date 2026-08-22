@@ -1,0 +1,6 @@
+.DS_Store
+._*
+*.swp
+.vscode/
+.idea/
+CLAUDE.md

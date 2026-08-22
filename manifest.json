@@ -1,0 +1,61 @@
+{
+  "manifest_version": 3,
+  "name": "MedleaPlus",
+  "version": "2.12.1",
+  "description": "A professional redesign of the UoM 1Med suite: dark violet clinical-HUD console \u2014 cursor-reactive glass event panes on the timetable, plus a matching dark-glass skin across the Submissions and Student Profile pages.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "64": "icons/icon64.png",
+    "128": "icons/icon128.png",
+    "256": "icons/icon256.png",
+    "512": "icons/icon512.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.medlea.manchester.ac.uk/TimeTable/*",
+        "https://www.medlea.manchester.ac.uk/Timetable/*",
+        "https://www.medlea.manchester.ac.uk/timetable/*",
+        "https://www.medlea.manchester.ac.uk/forms/*",
+        "https://www.medlea.manchester.ac.uk/Forms/*",
+        "https://www.medlea.manchester.ac.uk/people/*",
+        "https://www.medlea.manchester.ac.uk/People/*",
+        "https://www.medlea.manchester.ac.uk/Groups/*",
+        "https://www.medlea.manchester.ac.uk/groups/*",
+        "https://www.medlea.manchester.ac.uk/ReportIssue.aspx*",
+        "https://www.medlea.manchester.ac.uk/reportissue.aspx*",
+        "https://www.medlea.manchester.ac.uk/tasks/*",
+        "https://www.medlea.manchester.ac.uk/Tasks/*",
+        "https://www.medlea.manchester.ac.uk/auth/logon.aspx*",
+        "https://www.medlea.manchester.ac.uk/auth/Logon.aspx*",
+        "https://www.medlea.manchester.ac.uk/Auth/logon.aspx*",
+        "https://shib.manchester.ac.uk/*",
+        "https://www.onemed.manchester.ac.uk/*",
+        "https://www.1med.manchester.ac.uk/home*"
+      ],
+      "css": [
+        "styles.css"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    },
+    {
+      "matches": [
+        "https://www.medlea.manchester.ac.uk/onemed/*"
+      ],
+      "css": [
+        "styles.css"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ]
+}
