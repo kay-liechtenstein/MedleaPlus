@@ -257,6 +257,19 @@ a.cl-today:hover {
 }
 .aj-tt-dayHeader a:hover { color: var(--pulse) !important; text-shadow: 0 0 10px rgba(52,231,228,.5); }
 .aj-tt-dayHeader-past a { color: rgba(190, 182, 216, 0.72) !important; }
+/* Today's column header: a soft gold tint so "today" is findable at a glance.
+   Gold is used ONLY here (cyan --pulse stays reserved for time/live signals). */
+.aj-tt-dayHeader-present {
+  background: linear-gradient(180deg, rgba(212, 175, 55, .16), rgba(212, 175, 55, .07)) !important;
+  border-bottom: 1px solid rgba(212, 175, 55, .55) !important;
+}
+.aj-tt-dayHeader-present a { color: #EAD9A0 !important; }
+/* The site's own calendar frame is an inline `border: 1px solid #ccc` on #cal_holder.
+   Its right/bottom edges sit ~17px OUTSIDE where the day columns and hour rules end
+   (the site reserves a scrollbar allowance), so on the dark skin the grey line read as
+   a stray "shadow" band past the Saturday column. The glass card (#calholder) already
+   frames the calendar — drop the inner grey frame entirely. Inline style → !important. */
+#cal_holder { border-color: transparent !important; }
 
 /* ── Time gutter: the readout scale ──────────────────────────────────────── */
 .aj-week-time {
