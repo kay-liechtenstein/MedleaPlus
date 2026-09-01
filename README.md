@@ -23,13 +23,19 @@ There is nothing to click and nothing to set up. Log into MedLea as normal and e
 
 **CCA / OSCE feedback.** Each station becomes a card, and the cohort bar chart already printed next to each judgement is restated in words: the same chart, just read out as "you were above X% of the year", per station and averaged across the exam. For summative sittings, the outcome grid is redrawn with your own cell marked and the distance to the next band spelled out ("Honours starts at 14 passed — 2 more stations").
 
+**1Med Learn.** The Learn site is covered too, top to bottom: the year's component grid, each block, each case, and the case pages themselves — including your learning notes, My Learn and search. Its header is replaced with the same bar the timetable has, so the burger menu, the clock and your name are in the same place on every 1Med site; the Learn site's own section links (Learning, My Learn, My Notes, and the rest) move to a slim strip just underneath, so nothing is lost.
+
 **Everywhere else.** Submissions, the task inbox, attendance, people and groups, and the 1Med home portal all get the same treatment.
 
 ## Caveat
 
 This works only on Google Chrome, meaning that you cannot use this on Safari, Firefox, or any other browser. This is due to their security restrictions. Furthermore, iOS and Android do not allow for any extension loading, so this is a laptop-only affair.
 
-The extension only changes how pages look on your own screen. The one thing Chrome will ask you to allow is access to the 1Med sites themselves, which is unavoidable for something that restyles them; there is no account, no sign-up, no stored data and no server of mine involved. Nothing is ever sent anywhere — your marks and your timetable never leave your browser. Equally, it cannot change anything on MedLea itself: it is a coat of paint, so if a page is broken underneath, it will still be broken.
+The extension only changes how pages look on your own screen. The one thing Chrome will ask you to allow is access to the 1Med sites themselves, which is unavoidable for something that restyles them; there is no account, no sign-up and no server of mine involved. Nothing is ever sent anywhere — your marks and your timetable never leave your browser.
+
+It keeps exactly one thing between page loads, in Chrome's own extension storage on your machine: the name the timetable header prints for you. Only the timetable shows your title ("Mr", "Ms", "Dr"); the Learn site and your profile print your name without it, so the header would otherwise read one word short of the bar it is copying. Remembering it is the only way to make them match, it is never used unless it clearly names the same person the page is already naming, and it goes when you remove the extension.
+
+Equally, it cannot change anything on MedLea itself: it is a coat of paint, so if a page is broken underneath, it will still be broken.
 
 To be clear about what this is not: it does not unlock, reveal or retrieve anything. Everything it shows is worked out from the page already open in front of you — your own results, your own timetable — and it never reaches any part of MedLea you could not simply click to yourself. The day split is a count of the question rows the page is already showing you; the cohort figures are the values behind the bar chart the page is already drawing. It just does the arithmetic and writes the answer down.
 
@@ -41,4 +47,4 @@ If you have any question, could you please re-read the instructions.
 
 ## Update Information
 
-Last updated: 22nd Aug 2026.
+Last updated: 1st Sep 2026.

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "MedleaPlus",
-  "version": "2.12.2",
+  "version": "2.13.0",
   "description": "A professional redesign of the UoM 1Med suite: dark violet clinical-HUD console \u2014 cursor-reactive glass event panes on the timetable, plus a matching dark-glass skin across the Submissions and Student Profile pages.",
   "icons": {
     "16": "icons/icon16.png",
@@ -12,6 +12,9 @@
     "256": "icons/icon256.png",
     "512": "icons/icon512.png"
   },
+  "permissions": [
+    "storage"
+  ],
   "content_scripts": [
     {
       "matches": [
@@ -43,6 +46,19 @@
       ],
       "run_at": "document_idle",
       "all_frames": false
+    },
+    {
+      "matches": [
+        "https://www.onemedlearn.manchester.ac.uk/*"
+      ],
+      "css": [
+        "styles.css"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
     },
     {
       "matches": [

@@ -44,6 +44,24 @@
   // classes; flag it so styles.css can tidy its Todo sidebar layout specifically.
   if (/\/tasks\//i.test(location.pathname)) document.documentElement.classList.add('mp-tasks');
 
+  // 1Med Learn (www.onemedlearn…): the "Learn" destination in every 1Med global menu — a
+  // WordPress LMS (custom `onemedlearn` theme + Bulma + H5P), i.e. a FIFTH shell with none
+  // of medlea's, onemed's or 1med's markup. Flag <html>.mp-learn and the 1MED LEARN block
+  // of styles.css does the whole skin; content.js only does what CSS cannot (see
+  // decorateLearn()). Its own "Dark Mode (Beta)" is a server-side account preference we
+  // never touch — every rule in that block is !important-scoped so the skin lands either way.
+  const IS_LEARN = location.hostname === 'www.onemedlearn.manchester.ac.uk';
+  if (IS_LEARN) document.documentElement.classList.add('mp-learn');
+
+  // …and its weekly-case widget (/1medlearn-weekly-case/) is a bare fragment page — no
+  // header, footer or wrappers — iframed into BOTH My Learn and the 1Med home portal.
+  // Same treatment as the medlea/onemed home widgets: flag the frame, let the WIDGET
+  // rules recolour it in place, and skip the whole decorate() pass (there is no chrome
+  // to build). This is why the onemedlearn manifest entry is all_frames:true — before it,
+  // the 1Med home could only put a dark panel BEHIND that foreign frame.
+  const IS_LEARN_WIDGET = IS_LEARN && /\/1medlearn-weekly-case/i.test(location.pathname);
+  if (IS_LEARN_WIDGET) document.documentElement.classList.add('mp-learnwidget');
+
   // Logon gateway (medlea/auth/logon.aspx): the logged-out page — a classless 1998 table
   // (red "MedLea" bar + a groove fieldset with two login methods, the email form hidden
   // until "Enter Details"). No navbar/#content-body here, so it's all pure CSS: flag
@@ -107,11 +125,31 @@
     // inject one here; removeHeaderSearch() strips any stale/native one across all headers.
     //
     // NOTE: the medlea timetable prints the user's name WITH an honorific ("Mr/Ms/Dr …")
-    // and the 1med bar prints it without, so the two right-hand clusters differ by that
-    // one word. An earlier build closed the gap by prepending a hard-coded title — which
-    // is only ever correct for one person. A viewer's title is not knowable from this
-    // page (it lives on a different origin), and guessing it would put the wrong one in
-    // front of somebody's name, so the name is now left exactly as 1med renders it.
+    // and the 1med bar prints it without. An earlier build closed that gap by prepending a
+    // HARD-CODED title, which is only ever correct for one person — never do that. The gap
+    // is closed properly now, and only where it can be: mpRememberName()/mpTitled() carry
+    // the viewer's OWN titled name from their medlea session via chrome.storage, and use it
+    // only when it demonstrably names the same person. This page renders 1med's own bar
+    // rather than a replica, so it is untouched by that and still prints what 1med prints.
+  }
+
+  // ── 1Med Learn (www.onemedlearn…) ───────────────────────────────────────────
+  // Everything visual is CSS (the 1MED LEARN block, gated on html.mp-learn). The one
+  // thing CSS cannot do is reorder: the theme prints its legal notice in a `div.copyright`
+  // that is a SIBLING of, and BELOW, the <footer> — so once decorateFooter() docks that
+  // footer with the MEDLEA+ bar, three paragraphs of small print were left stranded
+  // underneath it, i.e. after the page had visibly ended. Move the notice ABOVE the
+  // footer (same idiom as decorate1med() relocating the 1Med welcome blurb) so the dock
+  // is the last thing on the page here too. The notice is KEPT, not hidden — it carries
+  // the confidentiality/patient-image terms and the eLearning contact address.
+  function decorateLearn() {
+    if (!IS_LEARN) return;
+    const copy = document.querySelector('div.copyright');
+    const footer = document.querySelector('footer');
+    if (copy && footer && footer.parentNode && !copy.dataset.mpMoved) {
+      copy.dataset.mpMoved = '1';
+      footer.parentNode.insertBefore(copy, footer);
+    }
   }
 
   // ── Tab favicon ─────────────────────────────────────────────────────────────
@@ -155,10 +193,11 @@
   }
 
   function decorate() {
-    if (IS_HOME_WIDGET) return;   // embedded widget: styling is pure-CSS (.mp-homewidget)
+    if (IS_HOME_WIDGET || IS_LEARN_WIDGET) return;   // embedded widget: styling is pure-CSS
     setFavicon();
     ensureLayers();
     decorate1med();
+    decorateLearn();
     extendDayStart();
     document.querySelectorAll('.aj-week-event').forEach((ev, i) => {
       if (!ev.style.getPropertyValue('--key')) {
@@ -208,6 +247,7 @@
     decorateCrumb();
     decorateLogin();
     decorateFooter();
+    mpRememberName();
   }
 
   // ── Logon gateway brand header (medlea/auth/logon.aspx) ─────────────────────
@@ -463,7 +503,13 @@
     const own = document.getElementById('mp-navbar');
     const site = [...document.querySelectorAll('a[href*="' + MP_PROFILE_PATH + '"]')]
       .find(a => (!own || !own.contains(a)) && /^\s*notifications\s*$/i.test(a.textContent));
-    return site ? site.href : mpProfileHref() + MP_NOTIFY_TAB;
+    if (site) return site.href;
+    // No profile record is discoverable on this page (1Med Learn carries no onemed link),
+    // so mpProfileHref() has fallen back to the site root — which routes each account to
+    // its own record. A tabSelected query on the ROOT addresses nothing, so send the
+    // reader to onemed itself rather than to a URL that only looks specific.
+    const rec = mpProfileHref();
+    return rec === MP_ONEMED + '/' ? rec : rec + MP_NOTIFY_TAB;
   }
 
   // onemed writes the name surname-first ("Surname, Forename") while the timetable writes
@@ -490,6 +536,56 @@
     return MP_NOT_A_NAME.test(t) ? '' : t;
   }
 
+  // ── Carrying the honorific across origins ───────────────────────────────────
+  // Only ONE page in the suite states the viewer's name WITH a title: the shared
+  // .navbar.bg-uom user dropdown on medlea/1med ("Mr Forename Surname"). onemed's profile
+  // and 1Med Learn's WordPress account both print the name without one, so the replica
+  // navbar read one word short of the bar it replicates — visible, and the reason this was
+  // long left alone: a title is not knowable from those origins and GUESSING one puts the
+  // wrong word in front of a stranger's name.
+  //
+  // It is knowable, though — from the viewer's OWN medlea page, in their own browser. So
+  // the medlea/1med bar's name is remembered in chrome.storage.local (a runtime value read
+  // off the live page, never a literal in this file — the identity rule stands) and reused
+  // on the origins that lack it, but ONLY when the stored string CONTAINS the name this
+  // page reports for itself — a stored "<Title> <Forename> <Surname>" contains this page's
+  // "<Forename> <Surname>", so it is the same person and the title is safe to show. A different account, or a stale entry, fails that test and is ignored, so the
+  // worst case is the name this page already knew — never somebody else's title.
+  // Async by nature: storage resolves after the bar is built, so mpApplyName() patches the
+  // rendered text node when it arrives. `storage` is a non-warning permission.
+  let MP_STORED_NAME = null;
+  function mpNorm(t){ return String(t).replace(/\s+/g, ' ').trim().toLowerCase(); }
+  function mpTitled(local){
+    if (!MP_STORED_NAME || !local) return local;
+    const a = mpNorm(MP_STORED_NAME), b = mpNorm(local);
+    return (a !== b && a.indexOf(b) !== -1) ? MP_STORED_NAME : local;
+  }
+  function mpRememberName(){
+    const bar = document.querySelector('.navbar.bg-uom:not(#mp-navbar)');
+    const a = bar && bar.querySelector('.navbar-nav.ml-auto .nav-link.dropdown-toggle');
+    const t = mpNameish(a && a.textContent);
+    if (!t || t === MP_STORED_NAME) return;
+    MP_STORED_NAME = t;
+    try { chrome.storage.local.set({ mpName: t }); } catch (e) {}
+  }
+  // Patch the name already rendered into the replica bar (the storage read lands after
+  // buildProfileNavbar has run). The name is the anchor's LAST text node — same node the
+  // build wrote — so this never disturbs the .mp-lead or the ::after caret.
+  function mpApplyName(){
+    const a = document.querySelector('#mp-navbar .navbar-nav.ml-auto .nav-link.dropdown-toggle');
+    if (!a) return;
+    const w = document.createTreeWalker(a, NodeFilter.SHOW_TEXT);
+    let last = null;
+    while (w.nextNode()) last = w.currentNode;
+    const want = mpUserName();
+    if (last && last.textContent !== want) last.textContent = want;
+  }
+  try {
+    chrome.storage.local.get('mpName', function (v) {
+      if (v && v.mpName) { MP_STORED_NAME = v.mpName; mpApplyName(); }
+    });
+  } catch (e) {}
+
   // The viewer's display name, in preference order:
   //   1. the shared UoM navbar's user dropdown (medlea / 1med) — carries the title too
   //   2. onemed's Student Profile overview heading — a real name, no title
@@ -505,7 +601,7 @@
     if (bar) {
       const a = bar.querySelector('.navbar-nav.ml-auto .nav-link.dropdown-toggle');
       const t = mpNameish(a && a.textContent);
-      if (t) return t;
+      if (t) return t;   // already carries the title — this is the source of truth
     }
     // onemed's Student Profile states the viewer's name in its overview heading — the
     // only place on that template that holds a NAME. (.main-header__user, below, holds
@@ -513,7 +609,14 @@
     // it is a fallback rather than a display name.)
     const overview = document.querySelector('.student-overview-data h3, .student-overview h3');
     const ot = mpNameish(overview && overview.textContent);
-    if (ot) return mpNameOrder(ot);
+    if (ot) return mpTitled(mpNameOrder(ot));
+    // 1Med Learn (WordPress): the admin bar's account item is the only place on the site
+    // that holds a NAME — "Hi, <span class=display-name>Forename Surname</span>". Read the
+    // span, never the anchor (its text is glued to the greeting). Like 1med's bar this
+    // carries NO honorific, and none is invented: see the identity rule.
+    const wpName = document.querySelector('#wp-admin-bar-my-account .display-name');
+    const wt = mpNameish(wpName && wpName.textContent);
+    if (wt) return mpTitled(mpNameOrder(wt));
     const box = document.querySelector('.main-header__user');
     if (box) {
       const all = [...box.querySelectorAll('*')];
@@ -521,6 +624,15 @@
         const t = mpNameish(el.textContent);
         if (t) return t;
       }
+    }
+    // …and its own header cluster prints the university login id (t01234ab) — accurate,
+    // and better than a generic label, but a fallback rather than a display name (same
+    // standing as onemed's .main-header__user).
+    const uo = document.querySelector('#header-bar > div.user-options');
+    if (uo) {
+      const own = [...uo.childNodes].filter(n => n.nodeType === 3)
+        .map(n => mpNameish(n.textContent)).find(Boolean);
+      if (own) return own;
     }
     return 'My Account';
   }
@@ -543,11 +655,12 @@
     ['My Profile', mpProfileHref],
     ['My Submissions','https://www.medlea.manchester.ac.uk/forms/list.aspx'],
     ['Notifications', mpNotifyHref],
-    // The site's own menu links a handbook path pinned to one academic year
-    // (…/2025-26/…), which silently rots every August. Point at the year-less index
-    // instead and let the reader pick the current year — never template the year in,
-    // the rollover date and path scheme are not ours to guess.
-    ['Programme Handbooks','https://handbooks.bmh.manchester.ac.uk/'],
+    // The LABEL is the site's own ("PA Handbook") so the menu reads identically; only the
+    // URL differs. The site links a handbook path pinned to one academic year
+    // (…/2026-27/…), which silently rots every August, so this points at the year-less
+    // index and lets the reader pick the current year — never template the year in, the
+    // rollover date and path scheme are not ours to guess.
+    ['PA Handbook','https://handbooks.bmh.manchester.ac.uk/'],
     ['PPD portfolio','https://www.onemed.manchester.ac.uk/EPPDPortfolio/Portfolio'],
     ['Timetable','https://www.medlea.manchester.ac.uk/TimeTable/l2.aspx']
   ];
@@ -583,12 +696,23 @@
     });
   }
 
+  // Built on onemed (whose .main-header can never match) AND on 1Med Learn (user request:
+  // "make sure the header and menu are completely identical to timetable"). Same markup on
+  // both → the same #mp-navbar rules → the same pixels, including the burger's global menu
+  // and the user dropdown. 1Med Learn's OWN chrome is not lost: styles.css re-cuts its
+  // #header-bar as a slim secondary rail directly beneath this bar, still carrying the
+  // seven section links, the content search and the site's account menu.
   function buildProfileNavbar(){
-    if(!document.querySelector('.main-header')) return;   // onemed Profiles only
+    if(!document.querySelector('.main-header') && !IS_LEARN) return;
     if(document.getElementById('mp-navbar')) return;      // build once
+    // The brand names the SECTION the bar heads, the way the timetable's own does
+    // ("1Med Timetable"): on 1Med Learn it reads "1Med Learn". Everything else about the
+    // bar — type, colour, metrics, menus — is identical; only this word differs, exactly
+    // as it does between the medlea and 1med headers.
+    var brandText = IS_LEARN ? '1Med Learn' : '1Med Timetable';
     var html='<div class="container">'
       +'<div class="global-menu dropdown mp-dd">'
-      +'<a class="navbar-brand" href="#" data-mp-toggle role="button">'+MP_NAVICO.burger+MP_NAVICO.x+'<span class="mp-brandtext">1Med Timetable</span></a>'
+      +'<a class="navbar-brand" href="#" data-mp-toggle role="button">'+MP_NAVICO.burger+MP_NAVICO.x+'<span class="mp-brandtext">'+brandText+'</span></a>'
       +'<div class="dropdown-menu">'+mpNavLinks(MP_GLOBAL)+'</div></div>'
       +'<ul class="navbar-nav ml-auto">'
       // The header search/magnifier is removed on every page (user request), so the right
@@ -2597,6 +2721,11 @@
   // ── D5: tag the breadcrumb <ul> so CSS can recolour "Home" without hitting
   // event, nav, or footer links. Idempotent (early-return once tagged) + guarded.
   function decorateCrumb() {
+    // 1Med Learn's global-nav slide-out and mobile menu are <ul>s whose FIRST item is a
+    // "Home" link — this generic "find the ul holding Home" probe matched them and styled
+    // a whole navigation menu as a breadcrumb trail. That site marks its crumbs with
+    // .breadcrumbs, which the 1MED LEARN block styles directly, so skip it here.
+    if (IS_LEARN) return;
     if (document.querySelector('ul.mp-crumb')) return;   // already tagged — idempotent
     const home = [...document.querySelectorAll('ul a')].find(a =>
       a.textContent.trim() === 'Home' &&
@@ -2656,6 +2785,18 @@
         f1.dataset.mpFooter = '1';
         f1.classList.add('mp-footer', 'mp-footer-min');
         f1.insertAdjacentHTML('afterbegin', MP_FOOT_INNER);
+      }
+      return;
+    }
+    // 1Med Learn ships a plain <footer> too (an empty .site-footer-menu inside a
+    // .sleeve) → dock it identically. decorateLearn() has already lifted the site's
+    // legal .copyright block above it, so the MEDLEA+ bar ends the page.
+    if (document.documentElement.classList.contains('mp-learn')) {
+      const fl = document.querySelector('footer');
+      if (fl && !fl.dataset.mpFooter) {
+        fl.dataset.mpFooter = '1';
+        fl.classList.add('mp-footer', 'mp-footer-min');
+        fl.insertAdjacentHTML('afterbegin', MP_FOOT_INNER);
       }
       return;
     }

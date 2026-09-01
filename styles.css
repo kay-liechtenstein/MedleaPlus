@@ -3183,7 +3183,10 @@ body:has(#main-wrapper) { padding-top: 62px; }
    the min-height/max-width both gain the padding (78px tall / 1170px wide). */
 #mp-navbar {
   box-sizing: border-box; display: flex; align-items: center;
-  height: 62px; min-height: 62px; padding: 8px 16px;
+  /* 61.54 = the timetable's own computed bar height (Bootstrap's .5rem padding + the
+     45.54px nav-link), measured live. It used to be a round 62 here, which put the whole
+     right cluster 0.23px low against the real bar. */
+  height: 61.54px; min-height: 61.54px; padding: 8px 16px;
   /* On the timetable the glass navbar glows because the ambient aurora bleeds through
      its backdrop-filter. Here the aurora is pinned to z-index:-1 (for modal stacking)
      and can't be sampled, so bake what the timetable EFFECTIVELY renders — not the raw
@@ -3213,7 +3216,12 @@ body:has(#main-wrapper) { padding-top: 62px; }
    whitespace (\n\t\t) that collapses to a rendered space after the 8px burger margin
    (8+6). Our brandtext is a trimmed span with no leading space, so the flex gap alone
    must supply the full 14px for the "1" to land at the same x as the timetable. */
-#mp-navbar .navbar-brand { display: inline-flex; align-items: center; gap: 14px; cursor: pointer; padding-top: 0; padding-bottom: 0; }
+/* Bootstrap's own .navbar-brand padding (.3125rem top/bottom) is kept, NOT zeroed: the
+   brand's box is what its dropdown hangs off, and the timetable's is 34.48px tall
+   (24.48 line + 5 + 5). Zeroed, the global menu opened 5px too high — invisible until
+   measured against the real bar. The padding does not move the burger or the text: the
+   brand is a centred inline-flex, so both stay on the same 30.77 centre line. */
+#mp-navbar .navbar-brand { display: inline-flex; align-items: center; gap: 14.03px; cursor: pointer; padding: 5px 0; }
 #mp-navbar .mp-ico { display: block; }
 #mp-navbar .mp-x { display: none; }
 #mp-navbar .global-menu.mp-open .mp-burger { display: none; }
@@ -3239,26 +3247,101 @@ body:has(#main-wrapper) { padding-top: 62px; }
    rendered space) baked as ONE margin — a literal space before the text proved
    page-dependent (renders on medlea/1med, stripped on this template), a margin is
    deterministic. Verified: name box 1028.9–1221.5 w192.6, ink 1046.0 w151.5 = timetable. */
-#mp-navbar .mp-lead { display: inline; margin-right: 9.1px; }
-/* burger: 18×13 svg (content.js); the timetable's burger centre sits 2px ABOVE
-   bar-centre (y22.5, cy29), so offset the flex-centred svg: margin-box 13-4=9 →
-   top (62-9)/2 = 26.5 → element y 22.5. Verified y22.5 h13 = timetable. */
-#mp-navbar .mp-burger { margin-top: -4px; }
+/* The timetable's lead, re-measured live: its <i class="fa fa-user mr-1"> is a TRULY
+   EMPTY inline (nothing sets a ::before there), so the whitespace between it and the name
+   is stripped and the only lead is the icon's own 4px mr-1 margin — while the whitespace
+   AFTER the name is NOT at a line end and renders as a 5.11px space before the caret.
+   Both are reproduced as margins rather than as literal spaces, because whitespace
+   collapsing is page-dependent (it flips on whether the neighbouring inline is empty)
+   whereas a margin is not. Verified against the live bar: ink and caret both land exactly.
+   (An earlier build folded the whole 4+5.11 into the LEAD as 9.1px: the anchor came out
+   the right width, but the name sat 5.11px right and the caret 5.11px left of the real
+   bar's — a difference no box measurement could show.) */
+#mp-navbar .mp-lead { display: inline; margin-right: 4px; }
+/* burger + brand text: two measured sub-pixel corrections, because neither element is
+   simply centred on the real bar.
+   · The timetable's burger centre sits 1.74px ABOVE bar-centre (y 22.53, cy 29.03 in a
+     61.54px bar). For a flex item centred by its MARGIN box, border-top = 24.27 + m/2,
+     so m = -3.48px lands it exactly. (It was -4 while this bar was forced to a round
+     62px tall; with the bar at its true 61.54 that reads 0.26px high.)
+   · The brand text is a blockified flex item here (the timetable's brand text just shares
+     the anchor's line box), so its ink lands at half-leading from the top of whatever line
+     box it gets — which means the SPAN has to carry the timetable's own 24.48px
+     line-height, not `normal`. With `normal` (~22.2px for Avenir Next) the ink sat 0.49px
+     low; nothing else is needed once the line-height is right.
+   Verified against the live bar: burger y 22.53 / brand ink 195.53, 19.03 — exact. */
+#mp-navbar .mp-burger { margin-top: -3.48px; }
+#mp-navbar .mp-brandtext { line-height: 24.48px; }
 /* Bootstrap's real caret as computed on the timetable: 5.5px triangle, 5px offset,
    full opacity (the old .32em/.1em/opacity-.6 version read thinner + dimmer). */
 #mp-navbar .dropdown-toggle::after {
-  content: ""; display: inline-block; width: 0; height: 0; margin-left: 5px;
+  content: ""; display: inline-block; width: 0; height: 0;
+  margin-left: calc(.255em + 5.11px);   /* Bootstrap's .255em + the rendered space above */
   border-top: 5.5px solid currentColor; border-right: 5.5px solid transparent; border-left: 5.5px solid transparent;
   opacity: 1;
 }
+/* min-width is Bootstrap's own 10rem and the panel is CONTENT-sized from there, exactly
+   like the timetable's (which measures 236.48 at its longest label). It was pinned to
+   236px, which rounded the panel 0.48px narrow. */
 #mp-navbar .mp-dd .dropdown-menu {
-  display: none; position: absolute; top: calc(100% + 7px); min-width: 236px;
+  /* 2px below the toggle — the timetable's own offset for BOTH menus (its global menu
+     opens at 50.01 under a brand ending at 48.01, its user menu at 55.54 under a link
+     ending at 53.54). It was 7px, which only looked right on the global menu because the
+     brand box was 5px short at the time.
+     The 2px is a MARGIN, not part of `top`: the timetable gets it from Bootstrap's own
+     `.dropdown-menu { margin: .125rem 0 0 }`, which is also live on the onemed profile —
+     so folding it into `top` there stacked with it and opened both menus 2px low. Stated
+     as a margin it overrides Bootstrap on onemed and supplies the gap on 1Med Learn,
+     which ships no Bootstrap at all. */
+  display: none; position: absolute; top: 100%; margin-top: 2px; min-width: 160px;
+  /* Width must be CONTENT-sized, and saying so explicitly is what makes it so.
+     Two things fight it: the onemed template caps .dropdown-menu at max-width:200px, and
+     our own `overflow: auto` (needed for the max-height) establishes a BFC, which drops
+     the panel's min-content width to 0 and lets shrink-to-fit collapse it to the
+     containing block (the brand, ~183px) instead of its natural 236.48. The timetable's
+     own menu escapes both because Bootstrap leaves it overflow:visible. */
+  max-width: none; width: max-content;
   padding: 8px 0; max-height: min(78vh, 560px); overflow: auto;
 }
 #mp-navbar .global-menu .dropdown-menu { left: 0; }
 #mp-navbar .dropdown-menu-right { right: 0; left: auto; }
 #mp-navbar .mp-dd.mp-open > .dropdown-menu { display: block; }
-#mp-navbar .dropdown-item { display: block; padding: 4px 24px; border-radius: 0; white-space: nowrap; }
+/* the timetable's menu items render in the SITE's Open Sans, not the skin's display face
+   — the shared .dropdown-item rule only sets size/colour, so the family came from each
+   host's body font and the replica's items were Avenir Next. Pin the timetable's. */
+#mp-navbar .dropdown-item {
+  display: block; padding: 4px 24px; border-radius: 0; white-space: nowrap;
+  font-family: "Open Sans", sans-serif;
+}
+
+/* ── the replica vs. the host's OWN frameworks ──────────────────────────────
+   #mp-navbar is built out of Bootstrap class names, which is free on onemed (a Bootstrap
+   template) but not on 1Med Learn: that page loads BULMA, which ships its own .navbar,
+   .container, .navbar-brand, .dropdown, .dropdown-menu and .dropdown-item — and the
+   WordPress theme adds `li { padding: 0 0 7px; line-height: 132% }` and `li, ul { margin:
+   .1em }`. None of them beat an id selector, but they win every property the replica
+   simply never declared, and those were exactly the ones that broke parity:
+     · Bulma `.navbar > .container .navbar-brand { margin-left: -.75rem }` → the burger
+       and brand sat 12px LEFT of the timetable's;
+     · Bulma `.navbar-brand { min-height: 3.25rem }` → a 52px brand box;
+     · the theme's `li { padding-bottom: 7px }` + `margin: .1em` → the user cluster sat
+       3.3px high and 1.6px in from the container's right edge.
+   So every geometric property those rules touch is pinned here explicitly. Same lesson as
+   the header clock: inside a foreign page, anything you leave to the cascade WILL be
+   claimed by the host's own rules. */
+#mp-navbar .container { min-height: 0; flex-grow: 1; }
+#mp-navbar .navbar-brand {
+  margin: 0; padding: 5px 0; min-height: 0; align-items: center; flex-shrink: 0;
+}
+#mp-navbar .global-menu {
+  display: flex; align-items: center; position: relative; vertical-align: baseline;
+}
+#mp-navbar .navbar-nav > li,
+#mp-navbar .nav-item {
+  display: block; margin: 0; padding: 0; line-height: normal; list-style: none;
+  position: relative; vertical-align: baseline; font-size: inherit;
+}
+#mp-navbar .dropdown-item { line-height: 1.5; width: auto; min-width: 0; }
 
 /* ── Page title ─────────────────────────────────────────────────────────────*/
 .pagetitle, .pagetitle span, .pagetitle span span { color: var(--ice) !important; }
@@ -3833,15 +3916,15 @@ html.mp-1med hr { border-color: var(--edge) !important; }
 /* footer: content.js drops the shared MEDLEA+ console dock into the plain <footer> here
    (same as every medlea page); the footer.mp-footer-min rules above style it — so we add
    NO 1med footer rules that would out-specify and break that dock. */
-/* embedded widgets: onemedbuzz removed; the medlea/onemed frames are recoloured from
-   inside (.mp-homewidget) so their iframe is transparent — cards sit on the page's own
-   dark canvas. onemedlearn is a foreign origin we can't inject into: give it a dark
-   panel so it's never a bare/white block. */
+/* embedded widgets: onemedbuzz removed; EVERY remaining frame is now recoloured from
+   INSIDE, so every iframe element here is transparent and the cards sit on this page's
+   own dark canvas. The medlea/onemed frames are html.mp-homewidget; onemedlearn's
+   weekly-case became reachable in v2.13.0, when the skin gained that host — it is
+   html.mp-learnwidget, styled by the 1MED LEARN block. (Until then it was a foreign
+   origin we could only put a dark --panel BEHIND.) */
 html.mp-1med iframe[src*="onemedbuzz"] { display: none !important; }
-html.mp-1med iframe.widget { background: transparent !important; border: none !important; box-shadow: none !important; }
-html.mp-1med iframe[src*="onemedlearn"] {
-  background: var(--panel) !important; border: 1px solid var(--edge) !important; border-radius: 14px !important;
-}
+html.mp-1med iframe.widget,
+html.mp-1med iframe[src*="onemedlearn"] { background: transparent !important; border: none !important; box-shadow: none !important; }
 
 /* ── 1Med home embedded widgets (medlea/onemed/home.aspx, injected via all_frames) ──
    Frame body is transparent → these controls sit on the parent page's dark canvas.
@@ -4446,3 +4529,850 @@ html.mp-shib a:hover { color: var(--ice) !important; text-shadow: 0 0 12px var(-
   html.mp-shib header.headerContainer::after { animation: none !important; }
   html.mp-shib input[name="_eventId_proceed"] { transition: none !important; }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   1MED LEARN  (www.onemedlearn.manchester.ac.uk)  — the "Learn" destination
+   in every 1Med global menu. A FIFTH shell: WordPress multisite running the
+   custom `onemedlearn` theme (Barrington), with Bulma, FontAwesome ×3, H5P,
+   summernote and flatpickr layered on. NONE of medlea's (#content-body,
+   .navbar.bg-uom, footer.footerContainer), onemed's (#main-wrapper) or 1med's
+   markup exists here, so this block stands alone; every selector is gated on
+   `html.mp-learn` (set by content.js) and can never reach another page.
+
+   Page families it covers, all keyed off the theme's own body classes:
+     · .page-template-units-index  — the year's component grid (home)
+     · .single-units               — a component (blurb + week filters + tiles)
+     · .single-topics              — an activity (case) → slide tiles + ILOs
+     · .single-slides              — an activity page: article + Contents rail
+                                     + prev/next + per-page learning notes
+     · .page-template-user-dashboard — My Learn (7 tiles + a widget iframe)
+     · .page-template-default      — My Notes / I Need Help / Guidance / Feedback
+     · .search-results             — search index
+     · html.mp-learnwidget         — /1medlearn-weekly-case/, the bare fragment
+                                     iframed into My Learn AND the 1Med home
+
+   Load-bearing facts, all measured on the live site — do not re-derive by guessing:
+   (a) The theme paints `html` AND `body` #fafafa and lights up 33 more surfaces
+       (#fff dropdowns/tiles/pills, #f0f0f0 unit cards, #e1e1e1 footer, #ebeced
+       notes, #ececec tabs, #FFFFF0 quiz, #e9e9e9 table zebra, #fffce4 row hover)
+       while setting text #292929/#000 — so this is a full repaint, not a tint.
+   (b) The site's brand purple `rgb(102,0,153)` arrives in an INLINE <style>, on
+       `a`, `.default_link_color`, `.color-primary-bg/-fg` and `.border-…`. An
+       inline sheet outranks nothing by origin, but it is dark purple on a near-black
+       canvas, so every one of those hooks is re-pointed at --orchid/--violet here.
+   (c) FX STACKING — the onemed pattern, for the onemed reason: #global_nav_menu
+       (z:950) is a SIBLING of #site_wrap while #header-bar (z:1000) is INSIDE it, so
+       giving #site_wrap a z-index to lift content above a z:0 FX layer would create a
+       stacking context and flip the slide-out nav on top of the header. Push the FX
+       to z:-1 instead — which then REQUIRES body/#site_wrap to stay transparent (the
+       root paints: html bg → negative-z children → in-flow backgrounds, so an opaque
+       body would bury the aurora), and means #header-bar's backdrop-filter has nothing
+       to sample, so its glass is BAKED exactly like #mp-navbar's.
+   (d) The HEADER IS THE REPLICA. On user instruction ("make sure the header and menu
+       are completely identical to timetable on medlearn") content.js builds the same
+       #mp-navbar here as on onemed, the WordPress admin bar is hidden (the timetable
+       has no such strip, and it is what forced html{margin-top:32px}), and the site's
+       own #header-bar is demoted to a 46px secondary rail underneath — see the
+       "page top" block below for the whole arrangement.
+   (e) No search control anywhere. The v2.5.1 "no magnifier" rule removed it from the
+       medlea/onemed/1med headers, and the user extended it to this rail too; the
+       replica bar never had one. The theme's markup is hidden, not deleted.
+   (f) H5P activities render in an about:blank iframe the content script does not
+       enter, and their interiors are AUTHORED media (the "I Need Help" one is already
+       dark). They are framed as a panel and left alone — same call as any foreign frame.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── canvas + FX stacking (see (c) above) ─────────────────────────────────── */
+html.mp-learn {
+  background: var(--void) !important;
+  color: var(--ice) !important;
+  font-family: var(--disp) !important;
+}
+html.mp-learn body,
+html.mp-learn #site_wrap,
+html.mp-learn header,
+html.mp-learn div.main {
+  background: transparent !important;
+  color: var(--ice) !important;
+}
+html.mp-learn body { font-family: var(--disp) !important; }
+html.mp-learn #mp-fx-root,
+html.mp-learn #mp-fx-root .mp-fx { z-index: -1 !important; }
+
+/* ── base type ────────────────────────────────────────────────────────────── */
+html.mp-learn p,
+html.mp-learn ul,
+html.mp-learn ol,
+html.mp-learn li,
+html.mp-learn dd,
+html.mp-learn dt,
+html.mp-learn td,
+html.mp-learn th,
+html.mp-learn label,
+html.mp-learn figcaption,
+html.mp-learn .article-content ul,
+html.mp-learn blockquote { color: var(--haze) !important; }
+html.mp-learn h1, html.mp-learn h2, html.mp-learn h3,
+html.mp-learn h4, html.mp-learn h5, html.mp-learn h6 {
+  color: var(--ice) !important; font-family: var(--disp) !important;
+}
+html.mp-learn strong, html.mp-learn b { color: var(--ice) !important; }
+/* …but NOT inside the replica navbar: that bar is not part of the host page, and this
+   rule (specificity 0,1,2 + !important) otherwise outranks the shared
+   `.navbar .nav-link, .navbar a` (0,1,1) and painted the brand orchid where the
+   timetable's is ice at 86%. The :not() keeps the bar on the shared rules verbatim. */
+html.mp-learn a:not(#mp-navbar a),
+html.mp-learn .default_link_color,
+html.mp-learn .color-primary-fg,
+html.mp-learn a:not(#mp-navbar a) .title { color: var(--orchid) !important; text-decoration: none !important; }
+html.mp-learn a:not(#mp-navbar a):hover,
+html.mp-learn a:not(#mp-navbar a):hover .title,
+html.mp-learn .default_link_color:hover {
+  color: var(--ice) !important; text-shadow: 0 0 12px var(--glow); text-decoration: none !important;
+}
+html.mp-learn hr {
+  border: 0 !important; border-top: 1px solid var(--edge) !important;
+  border-bottom: 0 !important; background: none !important;
+}
+html.mp-learn .border-default_link_color { border-color: var(--edge2) !important; }
+/* the theme's own brand chip (MBChB / "Case" / unit captions) → the console violet */
+html.mp-learn .color-primary-bg {
+  background: linear-gradient(120deg, var(--plum), var(--violet)) !important;
+  color: var(--ice) !important;
+}
+
+/* ── the page top: the timetable's bar, verbatim ───────────────────────────
+   User request: "make sure the header and menu are completely identical to timetable
+   on medlearn". So the site's own #header-bar stops being the header — content.js
+   builds the SAME #mp-navbar replica it builds on onemed (identical markup → the
+   identical #mp-navbar / .navbar.bg-uom rules → identical pixels, burger global menu
+   and user dropdown included). Two consequences handled here:
+
+   1. The WordPress admin bar is hidden. It is a black WP-branded strip above the
+      header that the timetable has no counterpart for, so nothing could be "identical"
+      while it was there; and it is what forced `html { margin-top: 32px }`. Its only
+      student-facing control, Log Out, survives in the site's own account menu, which
+      the rail below keeps. (Its markup stays in the DOM — mpUserName() reads the
+      viewer's display name out of it.)
+   2. 1Med Learn's own chrome — seven section links, the content search and the site
+      account menu — is NOT thrown away. #header-bar is re-cut as a slim secondary rail
+      directly beneath the navbar. No DOM surgery: the theme's floats become flex items,
+      reordered so the menu sits left and search/account right, and the rail's side
+      padding mirrors #mp-navbar's container ladder exactly (16px bar padding + the
+      centred Bootstrap max-width + its own 15px) so the first link's ink lines up
+      under the brand's. */
+html.mp-learn #wpadminbar { display: none !important; }
+html.mp-learn:has(#wpadminbar) { margin-top: 0 !important; }
+html.mp-learn { margin-top: 0 !important; }
+
+html.mp-learn #header-bar {
+  top: 61.54px !important;   /* the replica bar's exact height — 62 left a 0.46px seam */
+  height: 46px !important;
+  display: flex !important; align-items: center;
+  background: linear-gradient(180deg, rgba(21, 13, 40, .94), rgba(13, 8, 24, .94)) !important;
+  box-shadow: inset 0 -1px 0 var(--edge), 0 10px 26px -18px rgba(0, 0, 0, .8) !important;
+  font-family: var(--disp) !important;
+  padding: 0 31px !important;   /* 16 (bar) + 15 (container) — see the ladder below */
+}
+@media (min-width: 576px)  { html.mp-learn #header-bar { padding: 0 calc(31px + max(0px, (100% - 32px - 540px)  / 2)) !important; } }
+@media (min-width: 768px)  { html.mp-learn #header-bar { padding: 0 calc(31px + max(0px, (100% - 32px - 720px)  / 2)) !important; } }
+@media (min-width: 992px)  { html.mp-learn #header-bar { padding: 0 calc(31px + max(0px, (100% - 32px - 960px)  / 2)) !important; } }
+@media (min-width: 1200px) { html.mp-learn #header-bar { padding: 0 calc(31px + max(0px, (100% - 32px - 1140px) / 2)) !important; } }
+/* the navbar (62) + the rail (46) are both fixed, so the theme's in-flow spacer has
+   to reserve BOTH — it was sized for its own 58px bar alone */
+html.mp-learn #header-bar-spacer { height: 107.54px !important; background: transparent !important; }
+html.mp-learn #header-bar > div { height: 46px !important; line-height: 44px !important; color: var(--haze) !important; }
+/* the burger, the home mark and the (empty) institute logo are the navbar's job now */
+html.mp-learn #header-bar > div.toggle-global-nav,
+html.mp-learn #header-bar > div.site-logo,
+html.mp-learn #header-bar > div.institute-logo { display: none !important; }
+html.mp-learn #header-bar > div.site-primary-menu { order: 1; margin-right: auto; float: none !important; }
+html.mp-learn #header-bar > div.search-controls   { order: 2; float: none !important; }
+html.mp-learn #header-bar > div.user-options      { order: 3; float: none !important; flex: 0 0 auto; }
+
+/* rail links — colour/glow only on hover, nothing moves.
+   The theme's <li> carries `padding: 0 0 7px` and `line-height: 132%` from its global
+   list rules, and `p, ul, ol` set a 16px face: inside a 46px flex row that made every
+   two-word label ("My Learn", "I Need Help") wrap to a second line and spill out of the
+   rail. Pin the row explicitly — flex-shrink off, nowrap, one line-height — rather than
+   leaning on inherited list metrics. */
+/* Only above the theme's own 1000px breakpoint: below it the theme hides
+   `.desktop-only` and shows its `.toggle-mobile-menu` instead, and an unconditional
+   `display:flex` here overrode that — the rail's seven links AND the mobile burger were
+   both on screen at once. Keep the site's responsive behaviour; the rail then carries
+   just the account chip and the theme's own mobile menu does the navigating. */
+@media (min-width: 1001px) {
+  html.mp-learn #header-bar > div.site-primary-menu,
+  html.mp-learn #header-bar > div.site-primary-menu nav,
+  html.mp-learn #header-bar > div.site-primary-menu .menu-main-menu-container {
+    height: 46px !important; display: flex; align-items: center;
+    min-width: 0;   /* a flex item's default min-width:auto would refuse to shrink */
+  }
+}
+@media (max-width: 1000px) {
+  html.mp-learn #header-bar { justify-content: flex-end; }
+}
+/* The theme swaps to its mobile menu below 1000px, so the rail only has to hold seven
+   labels + the search + the account chip from 1000px up — which is tight at the bottom
+   of that range. The gap and the field breathe with the viewport, and if a longer menu
+   ever outgrows the row it scrolls rather than wrapping or clipping: no link is lost. */
+html.mp-learn #oml_primary_menu {
+  display: flex; align-items: center; gap: clamp(13px, 1.55vw, 22px);
+  margin: 0 !important; padding: 0 !important; list-style: none !important;
+  overflow-x: auto; scrollbar-width: none;
+}
+html.mp-learn #oml_primary_menu::-webkit-scrollbar { display: none; }
+html.mp-learn #oml_primary_menu > li {
+  flex: 0 0 auto; white-space: nowrap;
+  margin: 0 !important; padding: 0 !important; line-height: 46px !important;
+}
+html.mp-learn #oml_primary_menu > li > a {
+  display: block; white-space: nowrap; line-height: 46px !important; padding: 0 !important;
+  color: var(--haze) !important;
+  font-family: var(--disp) !important; font-size: 13.5px !important; letter-spacing: .02em;
+  transition: color .16s, text-shadow .16s;
+}
+html.mp-learn #oml_primary_menu > li > a:hover {
+  color: var(--ice) !important; text-shadow: 0 0 14px var(--glow);
+}
+html.mp-learn #oml_primary_menu > li.current-menu-item > a,
+html.mp-learn #oml_primary_menu > li.current_page_item > a,
+html.mp-learn #oml_primary_menu > li.current-menu-parent > a,
+html.mp-learn #oml_primary_menu > li.current-menu-ancestor > a {
+  color: var(--orchid) !important; text-shadow: 0 0 16px var(--glow);
+}
+
+/* rail search — REMOVED (user request: "searching sections on the second header not
+   needed"). It was kept at first as the only full-text way to find a case by name, but the
+   user's standing preference is a header with no search control anywhere (the v2.5.1
+   magnifier removal), and it now applies here too. The site's own /?s= search page is
+   still reachable — nothing else links to it, so the theme's markup is only hidden, never
+   removed, and one rule brings it back. */
+html.mp-learn #header-bar > div.search-controls { display: none !important; }
+
+/* the site's own account menu stays in the rail — it is where Log Off, My Learn and
+   the theme's Dark Mode (Beta) live, none of which the replica navbar's dropdown has */
+html.mp-learn #header-bar > div.user-options { color: var(--haze) !important; font-size: 14px !important; padding: 0 14px !important; white-space: nowrap; line-height: 46px !important; }
+html.mp-learn #header-bar > div.user-options::before,
+html.mp-learn #header-bar > div.user-options::after { color: var(--faint) !important; font-size: 15px !important; }
+html.mp-learn #header-bar > div.user-options:hover { background: rgba(139, 92, 246, .18) !important; color: var(--ice) !important; border-radius: 9px; }
+html.mp-learn div.user-options div.user-options-list {
+  top: 46px !important;
+  background: var(--panel2) !important;
+  border: 1px solid var(--edge) !important; border-radius: 12px !important;
+  box-shadow: 0 20px 44px -18px rgba(0, 0, 0, .85), inset 0 1px 0 rgba(160, 130, 255, .10) !important;
+}
+html.mp-learn div.user-options div.user-options-list li,
+html.mp-learn div.user-options div.user-options-list li a { color: var(--haze) !important; line-height: 150% !important; }
+html.mp-learn div.user-options div.user-options-list li a:hover { color: var(--ice) !important; }
+html.mp-learn div.user-options div.user-options-list li::before { color: var(--orchid) !important; }
+html.mp-learn div.user-options div.user-options-list li { padding: 7px 8px !important; border-radius: 8px; }
+html.mp-learn div.user-options div.user-options-list li:hover { background: rgba(139, 92, 246, .14) !important; }
+html.mp-learn .small-text { color: var(--faint) !important; }
+
+/* ── global nav slide-out + mobile menu ───────────────────────────────────── */
+html.mp-learn div#global_nav_menu,
+html.mp-learn div#global_nav_menu .slide-nav-wrap,
+html.mp-learn div#site_mobile_menu {
+  background: var(--panel2) !important;
+  border-right: 1px solid var(--edge) !important;
+  border-bottom: 1px solid var(--edge) !important;
+  box-shadow: 18px 0 44px -22px rgba(0, 0, 0, .85) !important;
+}
+html.mp-learn div#global_nav_menu .slide-nav-wrap > ul > li,
+html.mp-learn div#site_mobile_menu li {
+  border-bottom: 1px solid var(--edge) !important;
+  transition: background .16s;
+}
+html.mp-learn div#global_nav_menu .slide-nav-wrap > ul > li:hover,
+html.mp-learn div#site_mobile_menu li:hover { background: rgba(139, 92, 246, .13) !important; }
+html.mp-learn div#global_nav_menu .slide-nav-wrap > ul > li::after { color: var(--faint) !important; }
+html.mp-learn div#global_nav_menu .slide-nav-wrap > ul > li:hover::after { color: var(--orchid) !important; }
+html.mp-learn div#global_nav_menu a,
+html.mp-learn div#site_mobile_menu a { color: var(--haze) !important; }
+html.mp-learn div#global_nav_menu a:hover,
+html.mp-learn div#site_mobile_menu a:hover { color: var(--ice) !important; }
+html.mp-learn div#global_nav_menu .spinner { color: var(--orchid) !important; }
+/* the theme's mobile trigger ships `padding: 8px 0 40px` on a 40px box — an 88px slab
+   under the rail. Trim it to the rail's own 46px so the two read as one control strip.
+   Scoped to the theme's own breakpoint: `display:flex` unscoped forced the burger on at
+   every width, so a full-width desktop page showed the mobile band under the rail. */
+@media (max-width: 1000px) {
+  html.mp-learn .toggle-mobile-menu {
+    background: rgba(139, 92, 246, .14) !important;
+    height: 46px !important; padding: 0 !important;
+    display: flex !important; align-items: center; justify-content: flex-end;
+    box-shadow: inset 0 -1px 0 var(--edge);
+  }
+}
+html.mp-learn .toggle-mobile-menu::before {
+  color: var(--ice) !important; float: none !important; padding: 0 18px !important;
+}
+
+/* ── breadcrumbs ──────────────────────────────────────────────────────────── */
+html.mp-learn .pre-crumb {
+  background: linear-gradient(120deg, var(--plum), var(--violet)) !important;
+  color: var(--ice) !important; border-radius: 6px !important;
+  letter-spacing: .04em; font-weight: 600;
+}
+html.mp-learn .pre-crumb.staff-only-type { background: linear-gradient(120deg, #7f1d3a, #b03050) !important; }
+html.mp-learn .breadcrumbs .sep,
+html.mp-learn .breadcrumbs .sep i { color: var(--faint) !important; }
+html.mp-learn .crumb.year,
+html.mp-learn .crumb { background: transparent !important; }
+html.mp-learn .crumb a { color: var(--haze) !important; }
+html.mp-learn .crumb a:hover { color: var(--ice) !important; }
+
+/* ── shared "console pill" — every one of the theme's white 1px-bordered chips
+      (back / edit / discussion / ILO trigger / prev-next / show-all / favourite /
+      dashboard action / academic-year arrows) is the same control drawn six times.
+      One treatment, static hover (glow + border only): nothing may move. ────── */
+html.mp-learn .back-link a,
+html.mp-learn .edit-link a,
+html.mp-learn .discussion-link a,
+html.mp-learn .learning-outcomes-link a,
+html.mp-learn .prev-next-button,
+html.mp-learn .speciality-chooser span.show-all-button,
+html.mp-learn .filter-button,
+html.mp-learn .add-remove-favourite,
+html.mp-learn .video-favourite-button,
+html.mp-learn div.dash-tiles div.tile-actions a,
+html.mp-learn #academic_year_select span[data-method],
+html.mp-learn .ek_form input[type="submit"],
+html.mp-learn .button-primary,
+html.mp-learn form.front-end-actions input[type="submit"],
+/* …and the CLASSLESS ones the learning content itself emits — every in-page quiz ships a
+   bare `input type=submit value="Check Answer"`, which the UA paints #efefef. They were
+   the only light slabs left on an activity page. */
+html.mp-learn input[type="submit"],
+html.mp-learn input[type="button"],
+html.mp-learn input[type="reset"] {
+  /* the theme's `* { margin:0; padding:0 }` strips the UA padding off these, so the pill
+     collapses onto the glyphs — restate it here rather than relying on the default */
+  padding: 6px 16px !important;
+  background: var(--panel) !important;
+  border: 1px solid var(--edge) !important; border-radius: 9px !important;
+  color: var(--haze) !important; box-shadow: none !important;
+  font-family: var(--disp) !important;
+  transition: color .16s, border-color .16s, background .16s, box-shadow .16s;
+}
+html.mp-learn .back-link a:hover,
+html.mp-learn .edit-link a:hover,
+html.mp-learn .discussion-link a:hover,
+html.mp-learn .learning-outcomes-link a:hover,
+html.mp-learn .prev-next-button:hover,
+html.mp-learn .speciality-chooser span.show-all-button:hover,
+html.mp-learn .filter-button:hover,
+html.mp-learn .add-remove-favourite:hover,
+html.mp-learn .video-favourite-button:hover,
+html.mp-learn div.dash-tiles div.tile-actions a:hover,
+html.mp-learn #academic_year_select span[data-method]:hover,
+html.mp-learn .slide-pn-nav > div:hover,
+html.mp-learn .ek_form input[type="submit"]:hover,
+html.mp-learn .button-primary:hover,
+html.mp-learn form.front-end-actions input[type="submit"]:hover,
+html.mp-learn input[type="submit"]:hover,
+html.mp-learn input[type="button"]:hover,
+html.mp-learn input[type="reset"]:hover {
+  background: rgba(139, 92, 246, .16) !important;
+  border-color: var(--edge2) !important; color: var(--ice) !important;
+  box-shadow: 0 0 0 1px rgba(160, 130, 255, .12), 0 8px 24px -14px var(--glow) !important;
+}
+/* the chosen week / speciality filter, and a starred activity, read as "on" */
+html.mp-learn .filter-button.is-chosen,
+html.mp-learn .filter-button.speciality.is-chosen,
+html.mp-learn .add-remove-favourite[data-state="1"],
+html.mp-learn .video-favourite-button[data-state="1"] {
+  background: linear-gradient(120deg, rgba(109, 40, 217, .55), rgba(139, 92, 246, .45)) !important;
+  border-color: var(--edge2) !important; color: var(--ice) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), 0 8px 22px -14px var(--glow) !important;
+}
+html.mp-learn .add-remove-favourite::before,
+html.mp-learn .video-favourite-button::before { color: var(--orchid) !important; }
+html.mp-learn .add-remove-favourite[data-state="1"]::before,
+html.mp-learn .video-favourite-button[data-state="1"]::before {
+  color: var(--orchid) !important; text-shadow: 0 0 14px var(--glow);
+}
+html.mp-learn .learning-outcomes-link,
+html.mp-learn .back-link,
+html.mp-learn .edit-link,
+html.mp-learn .discussion-link { box-shadow: none !important; }
+html.mp-learn .slide-pn-nav > div { box-shadow: none !important; }
+
+/* ── units index: the year's component grid ───────────────────────────────── */
+html.mp-learn div.program-year-nav { color: var(--ice) !important; }
+html.mp-learn .explore-program,
+html.mp-learn .programme-holder { color: var(--ice) !important; }
+html.mp-learn .explore-program::before,
+html.mp-learn .explore-program::after { color: var(--violet) !important; }
+html.mp-learn .explore-layer-2 { color: var(--orchid) !important; }
+html.mp-learn .programme-holder span { color: var(--ice) !important; }
+html.mp-learn .program-years li { color: var(--faint) !important; transition: color .16s, text-shadow .16s; }
+html.mp-learn .program-years li:hover { color: var(--ice) !important; }
+html.mp-learn .program-years li.color-primary-fg { color: var(--orchid) !important; text-shadow: 0 0 16px var(--glow); }
+html.mp-learn div.oml-selectbox { background: var(--panel) !important; border-color: var(--edge) !important; color: var(--ice) !important; border-radius: 9px !important; }
+html.mp-learn div.oml-selectdrop {
+  background: var(--panel2) !important; border: 1px solid var(--edge) !important;
+  box-shadow: 0 18px 40px -16px rgba(0, 0, 0, .8) !important;
+}
+html.mp-learn div.oml-selectdrop a:hover { background: rgba(139, 92, 246, .16) !important; }
+
+html.mp-learn div.units-container .item {
+  background-color: var(--panel) !important;
+  border: 1px solid var(--edge) !important; border-radius: 16px !important;
+  overflow: hidden !important;
+  box-shadow: 0 14px 34px -20px rgba(0, 0, 0, .8) !important;
+  transition: border-color .18s, box-shadow .18s;
+}
+html.mp-learn div.units-container .item:hover {
+  border-color: var(--edge2) !important;
+  box-shadow: 0 0 0 1px rgba(160, 130, 255, .14), 0 18px 40px -18px var(--glow) !important;
+}
+/* the photo itself is content — dim it slightly at rest so the ice caption wins,
+   and bring it back on hover. Brightness only: the card must never move. */
+html.mp-learn div.units-container .item img {
+  filter: brightness(.86) saturate(.94); transition: filter .2s;
+}
+html.mp-learn div.units-container .item:hover img { filter: brightness(1) saturate(1); }
+html.mp-learn div.units-container .item .overlay {
+  background: linear-gradient(180deg, transparent 35%, rgba(11, 7, 21, .85)) !important;
+  opacity: 1 !important;
+}
+html.mp-learn div.units-container .item:hover .overlay {
+  background: linear-gradient(180deg, rgba(109, 40, 217, .18) 20%, rgba(11, 7, 21, .9)) !important;
+}
+/* the caption is a .color-primary-bg slab across the photo's foot — make it read as
+   a label on the gradient instead of a purple block */
+html.mp-learn div.units-container .item p {
+  background: none !important; color: var(--ice) !important;
+  width: 100% !important; font-family: var(--disp) !important; font-weight: 600;
+  text-shadow: 0 2px 14px rgba(6, 3, 14, .9);
+}
+html.mp-learn .no-units-found { color: var(--haze) !important; }
+html.mp-learn .oml-big-spinner, html.mp-learn .oml-spinner { color: var(--orchid) !important; }
+html.mp-learn .staff-only-post {
+  background: rgba(176, 48, 80, .88) !important; color: var(--ice) !important;
+}
+
+/* ── component page: activity (topic) tiles ───────────────────────────────── */
+html.mp-learn h1.unit-title,
+html.mp-learn h1.topic-title,
+html.mp-learn h1.slide-title,
+html.mp-learn h1.post-title,
+html.mp-learn h1.my-dashboard { color: var(--ice) !important; }
+html.mp-learn h1.my-dashboard::before { color: var(--violet) !important; }
+html.mp-learn .featured-media.image img {
+  border: 1px solid var(--edge) !important; border-radius: 14px !important;
+  box-shadow: 0 16px 38px -22px rgba(0, 0, 0, .85) !important;
+}
+html.mp-learn .academic-year-chooser label,
+html.mp-learn .speciality-chooser label,
+html.mp-learn label[for="academic_year_select"] { color: var(--haze) !important; }
+html.mp-learn #academic_year_select span[data-method]::before,
+html.mp-learn #academic_year_select span[data-method]::after { color: var(--orchid) !important; }
+/* the two arrows are drawn as one segmented control — keep them joined */
+html.mp-learn #academic_year_select span[data-method="year_prev"] { border-radius: 9px 0 0 9px !important; border-right-width: 0 !important; }
+html.mp-learn #academic_year_select span[data-method="year_next"] { border-radius: 0 9px 9px 0 !important; border-left-width: 0 !important; }
+html.mp-learn p.browsing-ac-year { color: var(--faint) !important; }
+
+/* Each tile's <a> becomes the card (the .topic-tile itself is the 25% grid cell and
+   owns the 10px gutter — carding THAT would eat the gutter). */
+html.mp-learn div.topic-tile > a {
+  background: var(--panel) !important;
+  border: 1px solid var(--edge) !important; border-radius: 14px !important;
+  overflow: hidden; padding-bottom: 14px;
+  box-shadow: 0 12px 30px -20px rgba(0, 0, 0, .8);
+  transition: border-color .18s, box-shadow .18s;
+}
+html.mp-learn div.topic-tile > a:hover {
+  border-color: var(--edge2) !important;
+  box-shadow: 0 0 0 1px rgba(160, 130, 255, .14), 0 16px 36px -18px var(--glow);
+}
+html.mp-learn div.topic-tile img {
+  margin: 0 0 12px 0 !important; object-fit: cover;
+  box-shadow: none !important; filter: brightness(.9) saturate(.95); transition: filter .2s;
+}
+html.mp-learn div.topic-tile > a:hover img { filter: brightness(1) saturate(1); }
+html.mp-learn div.topic-tile span,
+html.mp-learn div.slide-tile span {
+  display: block; padding: 0 14px; color: var(--faint) !important;
+  letter-spacing: .14em; font-family: var(--mono) !important; font-size: 10px !important;
+}
+html.mp-learn div.topic-tile h3,
+html.mp-learn div.topic-tile h3.title { padding: 0 14px; color: var(--orchid) !important; font-family: var(--disp) !important; }
+html.mp-learn div.topic-tile > a:hover h3,
+html.mp-learn div.topic-tile > a:hover h3.title { color: var(--ice) !important; }
+html.mp-learn div.topic-tile h3::after,
+html.mp-learn div.slide-tile h3::after { color: var(--faint) !important; }
+
+/* ── activity page: slide (page) tiles ────────────────────────────────────── */
+html.mp-learn div.case-set-heading div {
+  background: linear-gradient(120deg, var(--plum), var(--violet)) !important;
+  color: var(--ice) !important; border-radius: 6px !important; letter-spacing: .12em;
+}
+html.mp-learn div.case-set-divider hr { border-top-color: var(--edge) !important; }
+html.mp-learn div.slide-tile > a {
+  display: block; padding: 16px 18px 18px;
+  background: var(--panel) !important;
+  border: 1px solid var(--edge) !important; border-radius: 14px !important;
+  box-shadow: 0 12px 30px -20px rgba(0, 0, 0, .8);
+  transition: border-color .18s, box-shadow .18s, background .18s;
+}
+html.mp-learn div.slide-tile > a:hover {
+  background: rgba(139, 92, 246, .1) !important; border-color: var(--edge2) !important;
+  box-shadow: 0 0 0 1px rgba(160, 130, 255, .14), 0 16px 36px -18px var(--glow);
+}
+html.mp-learn div.slide-tile span { padding: 0 0 6px 0; }
+html.mp-learn div.slide-tile h3,
+html.mp-learn div.slide-tile h3.title { color: var(--orchid) !important; font-family: var(--disp) !important; }
+html.mp-learn div.slide-tile > a:hover h3,
+html.mp-learn div.slide-tile > a:hover h3.title { color: var(--ice) !important; }
+
+/* progress + visited ticks: keep the site's semantics, lift both off the dark canvas
+   (the "not done" marker was #c00 — near-invisible here) */
+html.mp-learn .progress-tracker-summary .progress-bar {
+  background: rgba(160, 130, 255, .12) !important;
+  border: 1px solid var(--edge) !important; border-radius: 999px !important; overflow: hidden;
+}
+html.mp-learn .progress-tracker-summary .progress-bar > div {
+  background: linear-gradient(90deg, var(--plum), var(--orchid)) !important;
+}
+html.mp-learn .progress-tracker-summary > .text { color: var(--haze) !important; }
+html.mp-learn .progress-tracker-summary > .info { color: var(--faint) !important; }
+html.mp-learn span.has-visited[data-status="1"]::before { color: #6EE7A8 !important; }
+html.mp-learn span.has-visited[data-status="0"]::before { color: #F49BB0 !important; }
+
+/* ── activity PAGE (the deepest content) ──────────────────────────────────── */
+html.mp-learn aside { border-color: var(--edge) !important; }
+/* the site renders the Contents rail on every activity page but only fills it on
+   multi-section ones — an empty glass panel beside the article reads as a broken widget,
+   so hide the CARD when it holds no items (the heading alone is not content). Only the
+   card: the <aside> itself may carry other things on other templates, and it reserves its
+   320px float either way. */
+html.mp-learn .slide-side-nav:not(:has(li)) { display: none !important; }
+html.mp-learn .slide-side-nav {
+  background: var(--panel) !important;
+  border: 1px solid var(--edge) !important; border-radius: 14px !important;
+  padding: 16px 18px 6px !important;
+}
+html.mp-learn .slide-side-nav h3 { color: var(--ice) !important; font-family: var(--disp) !important; }
+html.mp-learn .slide-side-nav ul > li { color: var(--haze) !important; }
+html.mp-learn .slide-side-nav ul > li a { color: var(--haze) !important; }
+html.mp-learn .slide-side-nav ul > li a:hover { color: var(--ice) !important; }
+html.mp-learn .slide-side-nav .current-item a { color: var(--orchid) !important; text-shadow: 0 0 14px var(--glow); }
+html.mp-learn .nav-item-topic { border-bottom-color: var(--edge) !important; }
+html.mp-learn .nav-item-topic.current-parent { background: rgba(139, 92, 246, .14) !important; border-radius: 8px; }
+html.mp-learn .nav-item-topic.current-parent a { color: var(--ice) !important; }
+
+/* ── ILO accordion (also used for any oml-accordion) ──────────────────────── */
+html.mp-learn .oml-accordion,
+html.mp-learn .ILOs {
+  border: 1px solid var(--edge) !important; border-radius: 12px !important;
+  box-shadow: none !important; background: transparent !important;
+}
+html.mp-learn .oml-accordion > label,
+html.mp-learn .ILOs > label {
+  background: var(--panel) !important; color: var(--ice) !important;
+  border-bottom: 1px solid var(--edge) !important;
+  font-family: var(--disp) !important;
+  transition: background .16s, color .16s;
+}
+html.mp-learn .oml-accordion > label:hover,
+html.mp-learn .ILOs > label:hover { background: rgba(139, 92, 246, .16) !important; }
+html.mp-learn .oml-accordion > label::before,
+html.mp-learn .ILOs > label::before { color: var(--orchid) !important; }
+html.mp-learn .oml-accordion > div,
+html.mp-learn .ILOs > div {
+  background: rgba(12, 8, 22, .5) !important;
+  border-bottom: 1px solid var(--edge) !important; color: var(--haze) !important;
+}
+html.mp-learn .ILOs > label[data-state="1"] { border-bottom-color: var(--edge) !important; }
+
+/* ── in-article content ───────────────────────────────────────────────────── */
+html.mp-learn div.article-content table {
+  border: 1px solid var(--edge) !important; background: transparent !important;
+}
+html.mp-learn div.article-content table thead tr { border-bottom: 2px solid var(--edge2) !important; }
+html.mp-learn div.article-content table thead tr td,
+html.mp-learn div.article-content table th { color: var(--ice) !important; }
+html.mp-learn div.article-content table tbody tr,
+html.mp-learn div.article-content table tbody tr td { border-color: var(--edge) !important; }
+html.mp-learn div.article-content table tr:nth-child(even) { background: rgba(160, 130, 255, .05) !important; }
+html.mp-learn div.article-content table tbody tr:hover,
+html.mp-learn body:not(.ask-question) table tbody tr:hover { background: rgba(139, 92, 246, .14) !important; }
+/* Images inside the content are the LEARNING MATERIAL (scanned letters, charts, clinical
+   photos) — never recoloured, only framed as paper, exactly like the CCA signature block. */
+html.mp-learn div.article-content img,
+html.mp-learn .index-entry .post-image img {
+  border-radius: 10px; border: 1px solid var(--edge);
+}
+html.mp-learn .wp-caption-text,
+html.mp-learn figcaption { color: var(--faint) !important; }
+html.mp-learn blockquote {
+  border-left: 3px solid var(--violet) !important;
+  background: var(--panel) !important; padding: 12px 16px !important; border-radius: 0 10px 10px 0;
+}
+html.mp-learn .article-content code,
+html.mp-learn .article-content pre {
+  background: rgba(12, 8, 22, .7) !important; color: var(--ice) !important;
+  border: 1px solid var(--edge) !important; border-radius: 8px !important;
+  font-family: var(--mono) !important;
+}
+/* H5P: authored, self-contained media in an about:blank frame we never enter (see (f)) */
+html.mp-learn .h5p-iframe-wrapper,
+html.mp-learn .h5p-content {
+  background: var(--panel) !important;
+  border: 1px solid var(--edge) !important; border-radius: 14px !important;
+  overflow: hidden;
+}
+html.mp-learn .h5p-content { border-width: 0 !important; }
+/* embedded video/document frames: framed, contents untouched */
+html.mp-learn iframe.iframe-class,
+html.mp-learn .embed-any-document-wrap {
+  border: 1px solid var(--edge) !important; border-radius: 12px !important; background: var(--panel) !important;
+}
+
+/* ── learning notes (per activity page, and the My Notes index) ───────────── */
+html.mp-learn .myusernotes,
+html.mp-learn .rd-my-notes { color: var(--haze) !important; }
+html.mp-learn #rd-myusernotes h4,
+html.mp-learn div.myusernotes h1,
+html.mp-learn div.myusernotes h2,
+html.mp-learn div.myusernotes h3,
+html.mp-learn div.myusernotes h4 { color: var(--ice) !important; }
+html.mp-learn div.myusernotes h3 a { color: var(--orchid) !important; }
+html.mp-learn .note-container,
+html.mp-learn div.oml-tile.my-notes .note-container,
+html.mp-learn .page-template-page-notes-php .note-container {
+  background: var(--panel) !important;
+  border: 1px solid var(--edge) !important; border-radius: 12px !important;
+  color: var(--haze) !important;
+}
+html.mp-learn .note-container .note-content,
+html.mp-learn .note-container .myusernotes-add p { color: var(--haze) !important; }
+html.mp-learn .note-container .note-footer span.date { color: var(--faint) !important; }
+html.mp-learn .note-container .note-footer input,
+html.mp-learn .note-container .note-footer a.edit,
+html.mp-learn .note-container .note-footer a.close,
+html.mp-learn .note-container .note-footer a.cancel,
+html.mp-learn .note-container .myusernotes-add a { color: var(--orchid) !important; background: transparent !important; }
+html.mp-learn .note-container .note-footer input:hover,
+html.mp-learn .note-container .note-footer a.edit:hover,
+html.mp-learn .note-container .note-footer a.close:hover { color: var(--ice) !important; }
+html.mp-learn .note-container .note-footer input.oml-delete { color: #F49BB0 !important; }
+html.mp-learn .mntp-wrap { color: var(--haze) !important; }
+
+/* form controls, wherever they appear (notes editor, search page, feedback forms) */
+html.mp-learn input[type="text"],
+html.mp-learn input[type="search"],
+html.mp-learn input[type="email"],
+html.mp-learn input[type="url"],
+html.mp-learn input[type="number"],
+html.mp-learn input[type="password"],
+html.mp-learn select,
+html.mp-learn textarea,
+html.mp-learn .note-container textarea,
+html.mp-learn .comment_textarea,
+html.mp-learn div.post_password_form input[type="password"] {
+  background: rgba(10, 6, 20, .72) !important;
+  border: 1px solid var(--edge) !important; border-radius: 9px !important;
+  color: var(--ice) !important; font-family: var(--disp) !important;
+}
+html.mp-learn input::placeholder,
+html.mp-learn textarea::placeholder { color: var(--faint) !important; font-style: normal !important; }
+html.mp-learn input:focus,
+html.mp-learn select:focus,
+html.mp-learn textarea:focus {
+  outline: none !important; border-color: var(--edge2) !important;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, .16) !important;
+}
+html.mp-learn .ek_form label,
+html.mp-learn .form_group_title { color: var(--haze) !important; }
+html.mp-learn .form_group_title { color: var(--ice) !important; }
+/* summernote (the rich-text note editor) */
+html.mp-learn .note-editor.note-frame,
+html.mp-learn .note-editor .note-toolbar,
+html.mp-learn .note-editor .note-editing-area .note-editable,
+html.mp-learn .note-editor .note-statusbar {
+  background: var(--panel2) !important; color: var(--ice) !important;
+  border-color: var(--edge) !important;
+}
+html.mp-learn .note-editor .note-btn {
+  background: var(--panel) !important; border-color: var(--edge) !important; color: var(--haze) !important;
+}
+html.mp-learn .note-editor .note-btn:hover { background: rgba(139, 92, 246, .18) !important; color: var(--ice) !important; }
+html.mp-learn .note-editor .note-dropdown-menu { background: var(--panel2) !important; border-color: var(--edge) !important; }
+
+/* ── My Learn dashboard ───────────────────────────────────────────────────── */
+html.mp-learn div.dash-tiles > div.oml-tile {
+  background: var(--panel) !important;
+  border: 1px solid var(--edge) !important; border-radius: 16px !important;
+  box-shadow: 0 14px 34px -22px rgba(0, 0, 0, .8) !important;
+}
+html.mp-learn div.dash-tiles > div.oml-tile > h2 {
+  color: var(--ice) !important; border-bottom: 1px solid var(--edge) !important;
+  font-family: var(--disp) !important; font-size: 20px !important;
+}
+html.mp-learn div.dash-tiles > div.oml-tile > div.tile-content,
+html.mp-learn div.dash-tiles p { color: var(--haze) !important; }
+html.mp-learn div.dash-tiles table td,
+html.mp-learn div.dash-single-wrapper table td,
+html.mp-learn div.dash-tiles table th,
+html.mp-learn div.dash-single-wrapper table th { border-color: var(--edge) !important; color: var(--haze) !important; }
+html.mp-learn div.dash-tiles table th { color: var(--ice) !important; }
+html.mp-learn td.more-details span { background: var(--panel2) !important; color: var(--haze) !important; border: 1px solid var(--edge) !important; }
+/* the weekly-case widget frame is skinned from INSIDE (html.mp-learnwidget), so the
+   iframe element itself must be transparent — the card sits on the tile's own panel */
+html.mp-learn .user-dash-iframe { background: transparent !important; border: 0 !important; }
+
+/* ── search results + post index ──────────────────────────────────────────── */
+html.mp-learn div.top-5-results h3 { color: var(--ice) !important; }
+html.mp-learn .index-entry {
+  background: var(--panel) !important;
+  border: 1px solid var(--edge) !important; border-radius: 14px !important;
+  padding: 16px !important; margin-bottom: 16px !important;
+  box-shadow: 0 12px 30px -22px rgba(0, 0, 0, .8) !important;
+  transition: border-color .18s, box-shadow .18s;
+}
+html.mp-learn .index-entry:hover {
+  border-color: var(--edge2) !important;
+  box-shadow: 0 0 0 1px rgba(160, 130, 255, .12), 0 16px 36px -18px var(--glow) !important;
+}
+html.mp-learn .index-entry h2,
+html.mp-learn .index-entry h2 a { color: var(--orchid) !important; font-size: 19px !important; }
+html.mp-learn .index-entry h2 a:hover { color: var(--ice) !important; }
+/* the rank badge on the Top-5 results is Bulma's `.number` pill (background #f5f5f5,
+   pill radius) — the theme only recolours its text, so the chip itself stayed white */
+html.mp-learn .index-entry h2 span.number,
+html.mp-learn span.number {
+  background: rgba(160, 130, 255, .12) !important;
+  border: 1px solid var(--edge) !important;
+  color: var(--faint) !important;
+}
+html.mp-learn .index-entry .article-excerpt { color: var(--haze) !important; }
+html.mp-learn .post-cat.published-date { color: var(--faint) !important; background: none !important; }
+/* the result's year / post-type tags ship as flat #353535 chips — dark enough to pass the
+   contrast sweep, but a neutral grey the rest of the console never uses */
+html.mp-learn .post-cat.item-program-year,
+html.mp-learn .post-cat.item-post-type {
+  background: rgba(139, 92, 246, .18) !important;
+  border: 1px solid var(--edge) !important; border-radius: 6px !important;
+  color: var(--haze) !important;
+}
+/* The theme's "no featured image" placeholder is a WHITE notepad raster, and it is the
+   brightest thing on a results page. Note the standard luminance sweep does NOT catch it:
+   the icon is mostly transparent, and transparent pixels sample as black on a fresh
+   canvas, which drags the mean under the threshold. Dim it to read as the muted
+   placeholder it is; real featured images are untouched. */
+html.mp-learn .index-entry .post-image img[src*="/images/theme/default_image"] {
+  opacity: .42; filter: grayscale(.4);
+}
+html.mp-learn div.search-form-wrapper input.search-text {
+  background: rgba(10, 6, 20, .72) !important; border: 1px solid var(--edge) !important;
+  color: var(--ice) !important; border-radius: 9px !important;
+}
+html.mp-learn div.search-form-wrapper input.search-text::placeholder { color: var(--faint) !important; font-style: normal !important; }
+html.mp-learn div.search-form-wrapper div.search-submit-wrapper::before { color: var(--haze) !important; }
+html.mp-learn div.search-form-wrapper div.search-submit-wrapper:hover::before { color: var(--ice) !important; }
+html.mp-learn .wp-pagenavi a,
+html.mp-learn .wp-pagenavi span {
+  background: var(--panel) !important; border: 1px solid var(--edge) !important;
+  color: var(--haze) !important; border-radius: 8px !important;
+}
+html.mp-learn .wp-pagenavi span.current,
+html.mp-learn .wp-pagenavi a:hover {
+  background: rgba(139, 92, 246, .2) !important; border-color: var(--edge2) !important; color: var(--ice) !important;
+}
+
+/* ── tabs, notices, quiz, comments ────────────────────────────────────────── */
+html.mp-learn .admin-tabs > label {
+  background: var(--panel) !important; background-image: none !important;
+  color: var(--haze) !important; border-bottom: 1px solid var(--edge) !important;
+  border-radius: 9px 9px 0 0 !important;
+}
+html.mp-learn .admin-tabs > label.active-tab {
+  background: rgba(139, 92, 246, .18) !important;
+  color: var(--ice) !important; border-top-color: var(--orchid) !important;
+}
+html.mp-learn .admin-tabs > div { color: var(--haze) !important; }
+html.mp-learn .info-note {
+  background: var(--panel2) !important; border: 1px solid var(--edge2) !important;
+  color: var(--haze) !important;
+  box-shadow: 0 18px 40px -16px rgba(0, 0, 0, .8) !important;
+}
+html.mp-learn p.smallnote { color: var(--faint) !important; }
+html.mp-learn .ek-feedback-success { background: rgba(110, 231, 168, .1) !important; border-left-color: #6EE7A8 !important; color: var(--haze) !important; }
+html.mp-learn .ek-feedback-alert { background: rgba(242, 151, 24, .12) !important; border-left-color: #F0B45E !important; color: var(--haze) !important; }
+html.mp-learn .ek-feedback-error,
+html.mp-learn .feedback-error { background: rgba(244, 155, 176, .12) !important; border-left-color: #F49BB0 !important; color: var(--haze) !important; }
+html.mp-learn .feedback-error { border: 1px solid rgba(244, 155, 176, .3) !important; }
+html.mp-learn #theExam {
+  background: var(--panel) !important; color: var(--haze) !important;
+  border: 1px solid var(--edge) !important; border-radius: 12px !important;
+}
+html.mp-learn #theExam ul, html.mp-learn #theExam li { color: var(--haze) !important; }
+html.mp-learn .oml-comment-body,
+html.mp-learn .comment,
+html.mp-learn .discussion-item-form-wrap {
+  background: var(--panel) !important; border: 1px solid var(--edge) !important; border-radius: 12px !important;
+}
+html.mp-learn .comment_user_meta_wrap { border-right-color: var(--edge) !important; }
+html.mp-learn .comment_date, html.mp-learn #cancel-comment-reply-link { color: var(--faint) !important; }
+html.mp-learn .comment_title { color: var(--ice) !important; }
+html.mp-learn .profile_avatar,
+html.mp-learn .profile_avatar_comment { border-color: var(--edge2) !important; }
+html.mp-learn .su-spoiler-title { background: linear-gradient(120deg, var(--plum), var(--violet)) !important; color: var(--ice) !important; }
+
+/* ── footer: the shared MEDLEA+ dock. decorateLearn() lifts the theme's legal
+      .copyright block ABOVE the <footer> (it is a sibling BELOW it in source, so
+      docking the footer stranded three paragraphs of small print after the page had
+      visibly ended). The notice is kept — it carries the confidentiality and
+      patient-image terms — just rendered as a quiet line above the bar. ───────── */
+html.mp-learn div.copyright {
+  background: transparent !important; padding: 8px 0 0 !important;
+}
+html.mp-learn div.copyright div.sleeve * {
+  color: var(--faint) !important; font-family: var(--disp) !important; font-size: 12px !important;
+}
+html.mp-learn div.copyright div.sleeve a { color: var(--haze) !important; }
+html.mp-learn div.copyright div.sleeve a:hover { color: var(--ice) !important; }
+html.mp-learn footer.mp-footer .sleeve,
+html.mp-learn footer.mp-footer .site-footer-menu { display: none !important; }
+
+/* ── the weekly-case widget (/1medlearn-weekly-case/) ─────────────────────────
+   A bare fragment page iframed into My Learn AND into the 1Med home portal. Same
+   treatment as the medlea/onemed home widgets: the frame is transparent and its own
+   content becomes a violet card on whichever dark canvas is behind it. */
+html.mp-learnwidget,
+html.mp-learnwidget body {
+  background: transparent !important; color: var(--ice) !important;
+  font-family: var(--disp) !important; margin: 0 !important;
+}
+html.mp-learnwidget ul.items { list-style: none !important; margin: 0 !important; padding: 0 !important; }
+html.mp-learnwidget ul.items > li {
+  list-style: none !important;
+  background: var(--panel) !important;
+  border: 1px solid var(--edge) !important; border-radius: 14px !important;
+  overflow: hidden; margin: 0 0 10px 0 !important;
+  transition: border-color .18s, box-shadow .18s;
+}
+html.mp-learnwidget ul.items > li:hover {
+  border-color: var(--edge2) !important;
+  box-shadow: 0 0 0 1px rgba(160, 130, 255, .14), 0 14px 34px -18px var(--glow);
+}
+html.mp-learnwidget .wk-image-wrap img { display: block; width: 100%; filter: brightness(.9) saturate(.95); }
+html.mp-learnwidget .wk-image-wrap a:hover img { filter: brightness(1) saturate(1); }
+html.mp-learnwidget .no-case {
+  background: linear-gradient(120deg, rgba(109, 40, 217, .35), rgba(139, 92, 246, .22)) !important;
+  color: var(--haze) !important; font-family: var(--disp) !important;
+  display: flex; align-items: center; justify-content: center; min-height: 130px;
+  letter-spacing: .02em;
+}
+html.mp-learnwidget .wk-text-wrap { padding: 12px 14px; }
+html.mp-learnwidget .wk-text-wrap a { color: var(--ice) !important; font-weight: 600; }
+html.mp-learnwidget .wk-text-wrap a:hover { color: var(--orchid) !important; }
+html.mp-learnwidget p, html.mp-learnwidget span { color: var(--haze) !important; }
+
+/* the flowing seam is the navbar's (.navbar.bg-uom::after) and is already covered by
+   the global reduced-motion block; nothing on this host animates on its own. */
