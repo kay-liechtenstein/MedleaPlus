@@ -208,11 +208,8 @@
       if (!ev.style.getPropertyValue('--h') && ev.style.height) {
         ev.style.setProperty('--h', ev.style.height);
       }
-      if (!ev.dataset.mpIn) {             // stagger the entrance once per pane
-        ev.style.animationDelay = Math.min(i * 45, 700) + 'ms';
-        ev.dataset.mpIn = '1';
-      }
     });
+    staggerPanes();   // normally a no-op: the observer already timed the entrance pre-paint
     document.querySelectorAll('.aj-tt-grid *').forEach(el => {
       if (getComputedStyle(el).zIndex === '-1') el.style.zIndex = '0';
     });
@@ -342,6 +339,30 @@
   function mpHourLabel(h){
     h = ((h % 24) + 24) % 24;
     return h === 0 ? 'midnight' : h === 12 ? 'midday' : h < 12 ? h + 'am' : (h - 12) + 'pm';
+  }
+
+  // Stagger the panes' entrance (mp-pane-in, 45ms per card, capped at 700ms). This MUST
+  // run before the browser paints a freshly rendered grid — i.e. synchronously in the
+  // MutationObserver callback, like extendDayStart() — not from the debounced decorate().
+  // A CSS animation starts the moment the card is inserted; changing animation-delay on
+  // an animation that is already running does not restart it cleanly, it RE-TIMES it:
+  // the card's progress becomes (elapsed - delay), so a half-visible card snaps back
+  // towards opacity 0 and rises a second time. Measured on a live week (delay set
+  // ~150ms after insertion): opacity .48 → .32 / .13 / .02 for the 45/90/135ms cards —
+  // the "flicker" — while the delay-0 card was untouched, which is why only "some"
+  // cards blinked. The only safe moments to set the delay are before the first paint
+  // (the observer path) or never; a card whose animation has already advanced (the
+  // document_idle call can meet an already-rendered grid) keeps its delay of 0.
+  function staggerPanes(){
+    let i = 0;
+    document.querySelectorAll('.aj-week-event').forEach(ev => {
+      const idx = i++;
+      if (ev.dataset.mpIn) return;
+      ev.dataset.mpIn = '1';
+      const a = ev.getAnimations ? ev.getAnimations().find(x => x.animationName === 'mp-pane-in') : null;
+      if (a && a.currentTime > 0) return;    // already on screen: retiming it is the flicker
+      ev.style.animationDelay = Math.min(idx * 45, 700) + 'ms';
+    });
   }
 
   function extendDayStart(){
@@ -2890,7 +2911,9 @@
     // which this skin must never produce. Measured grid→shift latency 1163ms → 0.6ms.
     // It is guarded and idempotent, so the extra calls cost nothing; try/catch because
     // an exception here would kill the observer and with it every later re-decoration.
-    try { extendDayStart(); } catch (e) {}
+    // staggerPanes() is here for the same reason: an animation-delay applied after the
+    // cards' entrance animation has begun re-times it mid-flight (the card blinks).
+    try { extendDayStart(); staggerPanes(); } catch (e) {}
     clearTimeout(t); t = setTimeout(decorate, 150);
   }).observe(document.getElementById('content-body') || document.body, { childList: true, subtree: true });
 

@@ -47,4 +47,4 @@ If you have any question, could you please re-read the instructions.
 
 ## Update Information
 
-Last updated: 1st Sep 2026.
+Last updated: 3rd Sep 2026.
