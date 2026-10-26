@@ -244,6 +244,7 @@
     decorateCrumb();
     decorateLogin();
     decorateFooter();
+    decorateEforms();
     mpRememberName();
   }
 
@@ -2895,6 +2896,308 @@
     const a = card.querySelector('a[href]');
     if (a) a.click();
   });
+
+  // ── eForms companion: outstanding attendance, read over the extension bridge ────
+  // A SEPARATE extension ("eForms", an offline-first client for onemedforms) keeps the
+  // list of attendance sessions and which of them already have a form. When BOTH
+  // extensions are loaded and enabled, this block asks its background worker for a
+  // status summary (chrome.runtime cross-extension messaging — no cookies, no vault,
+  // no form contents cross over; see eForms/lib/bridge.js) and renders a status chip
+  // in the shared console HEADER, just right of the clock (absolute, out of flow — like
+  // the clock it never disturbs the pixel-matched side clusters), opening a dropdown of
+  // sessions (overdue / due / upcoming / signed); on the timetable every event card whose
+  // start matches an attendance session also gets a small badge. Living in the header
+  // (user request) means the control exists only while MedleaPlus itself is on.
+  // With eForms absent or disabled the bridge simply never answers (lastError), and the
+  // chip reads "off" with a one-line explanation in its dropdown — the rest of the skin
+  // is unaffected. The ID below is NOT an install-specific id: eForms pins its public key
+  // in its manifest (`key`), so this is the same ID on every machine it is loaded on.
+  const MP_EFORMS_ID = 'dbnhefnihkdbhmdpggjhihckpmbgffhn';
+  const MP_EF_TTL = 60000;              // reuse a status for a minute between re-asks
+  const MP_EF_MATCH_MS = 30 * 60000;    // card ↔ session: same day, within 30 minutes
+  const MP_EF_ICON = '<svg viewBox="0 0 24 24" ' + MP_GS + '><rect x="4" y="3.5" width="16" height="17" rx="2.6"/><path d="M8 8.5h8M8 12h8M8 15.5h5"/></svg>';
+  const MP_EF_TICK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  const MP_EF_CROSS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>';
+  const MP_EF_CLOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.2"/><path d="M12 7.8V12l3 1.8"/></svg>';
+  const mpEf = { status: null, at: 0, asked: false, pending: null, bound: false };
+  const efEsc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  function mpEfAsk(msg) {
+    return new Promise(resolve => {
+      try {
+        chrome.runtime.sendMessage(MP_EFORMS_ID, msg, reply => {
+          // lastError = "Receiving end does not exist": eForms not installed / disabled.
+          if (chrome.runtime.lastError) return resolve(null);
+          resolve(reply && reply.ok ? reply : null);
+        });
+      } catch (e) { resolve(null); }
+    });
+  }
+
+  // One in-flight request at a time; the answer is cached for MP_EF_TTL.
+  function mpEfStatus(force) {
+    if (!force && mpEf.asked && Date.now() - mpEf.at < MP_EF_TTL) return Promise.resolve(mpEf.status);
+    if (mpEf.pending) return mpEf.pending;
+    mpEf.pending = mpEfAsk({ type: force === 'refresh' ? 'eforms:refresh' : 'eforms:status' }).then(s => {
+      mpEf.status = s; mpEf.at = Date.now(); mpEf.asked = true; mpEf.pending = null;
+      return s;
+    });
+    return mpEf.pending;
+  }
+
+  const MP_EF_DAY = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: '2-digit', month: 'short' });
+  const MP_EF_HM = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  function mpEfWhen(ms) { const d = new Date(ms); return MP_EF_DAY.format(d) + ' · ' + MP_EF_HM.format(d); }
+
+  // Chip text + level from a status reply (null = bridge silent = eForms absent).
+  // Attendance forms close 7 days after the session (the bridge reports expiresAt per
+  // session). Time left, as a short word: "3d" / "9h" / "<1h".
+  function mpEfLeft(ms) {
+    const h = (ms - Date.now()) / 3600000;
+    if (h >= 48) return Math.ceil(h / 24) + 'd';
+    if (h >= 1) return Math.floor(h) + 'h';
+    return h > 0 ? '<1h' : 'now';
+  }
+  const MP_EF_URGENT_MS = 48 * 3600000;   // a window closing within 2 days pulses
+
+  // Everything still to submit (session passed or not), soonest-closing first.
+  function mpEfTodo(a) {
+    return ((a && a.entries) || []).filter(e => e.state === 'overdue' || e.state === 'due' || e.state === 'open')
+      .sort((x, y) => (x.expiresAt || 0) - (y.expiresAt || 0));
+  }
+
+  function mpEfSummary(s) {
+    if (!s) return { level: 'off', text: 'off', title: 'eForms companion not found' };
+    const a = s.attendance || {};
+    if (s.locked) return { level: 'off', text: 'locked', title: 'Confirm your account in eForms' };
+    if (!s.signedIn && !s.demo) return { level: 'off', text: 'signed out', title: 'Sign in to eForms to refresh' };
+    if (!a.available) return { level: 'none', text: 'no attendance', title: 'No attendance forms assigned' };
+    const todo = mpEfTodo(a);
+    const n = todo.length;
+    if (!n) return { level: 'green', text: 'up to date', title: 'Every attendance form is submitted' };
+    const soonest = (todo[0] && todo[0].expiresAt) || a.nextExpiry || 0;
+    const over = a.overdueCount != null ? a.overdueCount : todo.filter(e => e.state === 'overdue').length;
+    const left = soonest ? mpEfLeft(soonest) : '';
+    return { level: over ? 'red' : 'amber',
+             urgent: Boolean(soonest) && soonest - Date.now() <= MP_EF_URGENT_MS,
+             text: n + ' to submit' + (left ? ' · ' + left + ' left' : ''),
+             title: n + ' attendance form' + (n === 1 ? '' : 's') + ' to submit' +
+                    (left ? ' — the first closes in ' + left + ' (7 days after its session)' : '') };
+  }
+
+  function mpEfRow(e, windowMs) {
+    const todo = e.state === 'overdue' || e.state === 'due' || e.state === 'open';
+    const ico = e.state === 'done' ? MP_EF_TICK : e.state === 'expired' ? MP_EF_CROSS : e.state === 'overdue' ? MP_EF_CROSS : MP_EF_CLOCK;
+    // the one number that matters: time left before the form closes (session + 7 days)
+    const note = e.state === 'done' ? 'signed' : e.state === 'expired' ? 'expired' :
+                 (e.draft ? 'draft · ' : '') + (e.expiresAt ? mpEfLeft(e.expiresAt) + ' left' : 'to submit');
+    let bar = '';
+    if (todo && e.expiresAt && windowMs) {
+      // how much of the window has already gone (0 until the session has happened)
+      const pct = Math.max(0, Math.min(100, Math.round(100 * (1 - (e.expiresAt - Date.now()) / windowMs))));
+      bar = '<span class="mp-ef-bar" aria-hidden="true" style="--pct:' + pct + '%"><i></i></span>';
+    }
+    const urgent = todo && e.expiresAt && e.expiresAt - Date.now() <= MP_EF_URGENT_MS ? ' data-urgent="1"' : '';
+    return '<li class="mp-ef-row" data-state="' + efEsc(e.state) + '"' + urgent + ' title="' + efEsc(e.formName || '') + '">' +
+             '<span class="mp-ef-mark" aria-hidden="true">' + ico + '</span>' +
+             '<span class="mp-ef-when">' + efEsc(mpEfWhen(e.startsAt)) + '</span>' +
+             '<span class="mp-ef-what">' + efEsc(e.title) + '</span>' +
+             '<span class="mp-ef-note">' + note + '</span>' + bar +
+           '</li>';
+  }
+
+  function mpEfPanelHtml(s) {
+    const sum = mpEfSummary(s);
+    let body = '';
+    if (!s) {
+      body = '<p class="mp-ef-msg">The <b>eForms</b> companion extension is not installed or is switched off. ' +
+             'Load both <b>MedleaPlus</b> and <b>eForms</b> in <span class="mp-ef-mono">chrome://extensions</span> ' +
+             'and enable them to see your attendance sessions here.</p>';
+    } else if (s.locked) {
+      body = '<p class="mp-ef-msg">eForms has forms downloaded for a different sign-in. Open eForms and confirm your account to unlock them.</p>';
+    } else if (!s.signedIn && !s.demo) {
+      body = '<p class="mp-ef-msg">You are signed out of eForms. Open it and sign in to refresh the list; the last downloaded sessions are shown below.</p>';
+    }
+    const a = (s && s.attendance) || { entries: [] };
+    const win = a.windowMs || 7 * 24 * 3600000;
+    const row = e => mpEfRow(e, win);
+    const entries = (a.entries || []).slice().sort((x, y) => x.startsAt - y.startsAt);
+    // sessions that have happened first, soonest-closing at the top — those are the ones to do now
+    const todo = mpEfTodo(a);
+    const overdue = todo.filter(e => e.state === 'overdue');
+    const open = todo.filter(e => e.state !== 'overdue');
+    const expired = entries.filter(e => e.state === 'expired');
+    const done = entries.filter(e => e.state === 'done');
+    if (s && a.available) {
+      if (!entries.length) body += '<p class="mp-ef-msg">No attendance sessions are currently open.</p>';
+      if (todo.length) {
+        body += '<div class="mp-ef-alert' + (overdue.length ? '' : ' mp-ef-alert-soft') + '">' + todo.length + ' attendance form' + (todo.length === 1 ? '' : 's') +
+                ' to submit — each closes 7 days after its session</div>';
+      }
+      if (overdue.length) body += '<div class="mp-ef-group mp-ef-group-red">Session started · submit now</div><ul class="mp-ef-list">' + overdue.map(row).join('') + '</ul>';
+      if (open.length) body += '<div class="mp-ef-group">Session still to come</div><ul class="mp-ef-list">' + open.map(row).join('') + '</ul>';
+      if (expired.length) {
+        const recent = expired.slice(-4);
+        body += '<div class="mp-ef-group">Missed · window closed' + (expired.length > recent.length ? ' · last ' + recent.length + ' of ' + expired.length : '') + '</div>' +
+                '<ul class="mp-ef-list mp-ef-done">' + recent.map(row).join('') + '</ul>';
+      }
+      if (done.length) {
+        const recent = done.slice(-5);
+        body += '<div class="mp-ef-group">Signed' + (done.length > recent.length ? ' · last ' + recent.length + ' of ' + done.length : '') + '</div>' +
+                '<ul class="mp-ef-list mp-ef-done">' + recent.map(row).join('') + '</ul>';
+      }
+    } else if (s && !s.locked) {
+      body += '<p class="mp-ef-msg">No attendance forms are assigned in eForms yet. Press Refresh after signing in.</p>';
+    }
+    const c = (s && s.counts) || null;
+    const counts = c ? 'Forms ' + c.forms + ' · Drafts ' + c.drafts + ' · Outbox ' + c.outbox + ' · Sent ' + c.sent : '';
+    const synced = s && s.lastSync ? 'synced ' + mpEfWhen(s.lastSync) : '';
+    return '<div class="mp-ef-head">' +
+             '<span class="mp-ef-title">Attendance <em>eForms</em></span>' +
+             '<span class="mp-ef-sub" data-level="' + sum.level + '">' + efEsc(sum.title || sum.text) + '</span>' +
+           '</div>' + body +
+           '<div class="mp-ef-foot">' +
+             '<span class="mp-ef-counts">' + efEsc(counts) + (counts && synced ? ' · ' : '') + efEsc(synced) + '</span>' +
+             (s ? '<button type="button" class="mp-ef-btn" data-ef="refresh">Refresh</button>' +
+                  '<button type="button" class="mp-ef-btn mp-ef-btn-go" data-ef="open">Open eForms</button>' : '') +
+           '</div>';
+  }
+
+  function mpEfRender(root) {
+    const s = mpEf.status, sum = mpEfSummary(s);
+    root.dataset.level = sum.level;
+    if (sum.urgent) root.dataset.urgent = '1'; else delete root.dataset.urgent;
+    const chip = root.querySelector('.mp-ef-chip');
+    chip.title = sum.title;
+    chip.querySelector('.mp-ef-v').textContent = sum.text;
+    root.querySelector('.mp-ef-panel').innerHTML = mpEfPanelHtml(s);
+    mpEfMarkCards();
+  }
+
+  function mpEfMount() {
+    if (document.getElementById('mp-ef')) return document.getElementById('mp-ef');
+    // beside the header clock (buildClock() runs just before us in decorate())
+    const clock = document.getElementById('mp-clock');
+    const host = clock && clock.parentElement;
+    if (!host) return null;
+    const root = document.createElement('div');
+    root.id = 'mp-ef';
+    root.className = 'mp-ef';
+    root.dataset.level = 'off';
+    root.innerHTML =
+      '<button type="button" class="mp-ef-chip" aria-expanded="false" aria-controls="mp-ef-panel" aria-label="eForms attendance">' +
+        '<span class="mp-glyph mp-ef-ico" aria-hidden="true">' + MP_EF_ICON + '</span>' +
+        '<span class="mp-ef-dot" aria-hidden="true"></span>' +
+        '<span class="mp-ef-k">eForms</span><span class="mp-ef-v">…</span>' +
+      '</button>' +
+      '<div class="mp-ef-panel" id="mp-ef-panel" hidden></div>';
+    clock.insertAdjacentElement('afterend', root);
+    const chip = root.querySelector('.mp-ef-chip');
+    const panel = root.querySelector('.mp-ef-panel');
+    const setOpen = o => { panel.hidden = !o; chip.setAttribute('aria-expanded', String(o)); };
+    chip.addEventListener('click', e => {
+      e.preventDefault(); e.stopPropagation();
+      const o = panel.hidden;
+      setOpen(o);
+      if (o) mpEfStatus(false).then(() => mpEfRender(root));   // re-ask if the minute is up
+    });
+    root.addEventListener('click', e => {
+      const b = e.target.closest('[data-ef]');
+      const row = e.target.closest('.mp-ef-row');
+      if (b && b.dataset.ef === 'open') { mpEfAsk({ type: 'eforms:open', attendance: true }); return; }
+      if (b && b.dataset.ef === 'refresh') {
+        b.disabled = true; b.textContent = 'Refreshing…';
+        mpEfStatus('refresh').then(() => mpEfRender(root));
+        return;
+      }
+      if (row) mpEfAsk({ type: 'eforms:open', attendance: true });
+    });
+    if (!mpEf.bound) {
+      mpEf.bound = true;
+      document.addEventListener('click', e => {
+        const r = document.getElementById('mp-ef');
+        if (r && !r.contains(e.target)) {
+          r.querySelector('.mp-ef-panel').hidden = true;
+          r.querySelector('.mp-ef-chip').setAttribute('aria-expanded', 'false');
+        }
+      });
+      document.addEventListener('keydown', e => {
+        if (e.key !== 'Escape') return;
+        const r = document.getElementById('mp-ef');
+        if (r) { r.querySelector('.mp-ef-panel').hidden = true; r.querySelector('.mp-ef-chip').setAttribute('aria-expanded', 'false'); }
+      });
+    }
+    return root;
+  }
+
+  // Badge every week/day-view event card whose start matches an attendance session
+  // (same calendar day, nearest start within MP_EF_MATCH_MS). Column dates come from
+  // the grid's own .aj-tt-dayHeader cells ("Sun 15 Nov 26"), times from the card's own
+  // header text ("09:00-12:00"). Cards are rebuilt by the site on every week/view
+  // change, so badges are re-applied from the cached status on each decorate() pass;
+  // existing badges are refreshed in place (no duplicates).
+  const MP_EF_MONTHS = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+  function mpEfMarkCards() {
+    const cards = document.querySelectorAll('.aj-week-event');
+    if (!cards.length) return;
+    const s = mpEf.status;
+    const entries = (s && s.attendance && s.attendance.entries) || [];
+    if (!entries.length) { cards.forEach(c => { const b = c.querySelector('.mp-ef-badge'); if (b) b.remove(); }); return; }
+    const cols = [...document.querySelectorAll('.aj-tt-dayHeader')].map(h => {
+      const m = /(\d{1,2})\s+([A-Za-z]{3})\s+(\d{2,4})/.exec(h.textContent || '');
+      if (!m) return null;
+      const yy = +m[3]; const year = yy < 100 ? 2000 + yy : yy;
+      return { left: parseFloat(h.style.left) || h.offsetLeft, w: parseFloat(h.style.width) || h.offsetWidth,
+               date: new Date(year, MP_EF_MONTHS[m[2].toLowerCase()], +m[1]) };
+    }).filter(Boolean);
+    if (!cols.length) return;
+    cards.forEach(card => {
+      const hd = card.querySelector('.aj-week-event-header');
+      const tm = hd && /(\d{1,2}):(\d{2})/.exec(hd.textContent || '');
+      const left = parseFloat(card.style.left);
+      let col = null, best = Infinity;
+      cols.forEach(c => { const d = Math.abs(c.left - left); if (d < best && d < c.w / 2) { best = d; col = c; } });
+      let old = card.querySelector('.mp-ef-badge');
+      if (!tm || !col) { if (old) old.remove(); return; }
+      const start = new Date(col.date); start.setHours(+tm[1], +tm[2], 0, 0);
+      const t = start.getTime();
+      let hit = null, gap = Infinity;
+      entries.forEach(e => {
+        const d = Math.abs(e.startsAt - t);
+        if (d <= MP_EF_MATCH_MS && d < gap && new Date(e.startsAt).toDateString() === start.toDateString()) { gap = d; hit = e; }
+      });
+      if (!hit) { if (old) old.remove(); return; }
+      if (!old) {
+        old = document.createElement('span');
+        old.className = 'mp-ef-badge';
+        card.appendChild(old);
+      }
+      old.dataset.state = hit.state;
+      const todo = hit.state === 'overdue' || hit.state === 'due' || hit.state === 'open';
+      const lf = todo && hit.expiresAt ? mpEfLeft(hit.expiresAt) : '';
+      const tl = hit.state === 'overdue' ? lf : '';   // the pill countdown is for sessions already started
+      if (todo && hit.expiresAt && hit.expiresAt - Date.now() <= MP_EF_URGENT_MS) old.dataset.urgent = '1'; else delete old.dataset.urgent;
+      old.title = 'eForms attendance: ' + hit.title + ' — ' +
+                  (hit.state === 'done' ? 'signed' : hit.state === 'expired' ? 'window closed (7 days after the session)' :
+                   'form to submit — closes in ' + lf + ' (7 days after the session)');
+      // icon-only (the card header is ~145px and the time text fills most of it) —
+      // except an overdue session, which carries its countdown: that is the one fact
+      // that must be noticeable at a glance.
+      old.innerHTML = '<span class="mp-glyph" aria-hidden="true">' +
+                      (hit.state === 'done' ? MP_EF_TICK : (hit.state === 'overdue' || hit.state === 'expired') ? MP_EF_CROSS : MP_EF_CLOCK) + '</span>' +
+                      (tl ? '<span class="mp-ef-badge-t">' + efEsc(tl) + '</span>' : '');
+    });
+  }
+
+  function decorateEforms() {
+    if (IS_LEARN || document.documentElement.classList.contains('mp-1med') ||
+        document.documentElement.classList.contains('mp-login') ||
+        document.documentElement.classList.contains('mp-shib')) return;
+    const root = mpEfMount();
+    if (!root) return;
+    if (!mpEf.asked && !mpEf.pending) mpEfStatus(false).then(() => mpEfRender(root));
+    else mpEfMarkCards();
+  }
 
   decorate();
 

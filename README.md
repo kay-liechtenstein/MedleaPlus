@@ -27,6 +27,8 @@ There is nothing to click and nothing to set up. Log into MedLea as normal and e
 
 **Everywhere else.** Submissions, the task inbox, attendance, people and groups, and the 1Med home portal all get the same treatment.
 
+**eForms attendance (optional).** If you also use the separate **eForms** extension (a friend's offline eForms client for the attendance forms), MedleaPlus asks it which attendance sessions still need a form and shows the answer where you already are: a small *eForms* chip in the header, next to the clock, that opens a list of your attendance sessions, and a badge on each timetable card that matches one of them. An attendance form closes 7 days after its session, so every unsigned session shows how long you have left, counting from the moment the session starts; the chip turns red with a countdown once a session has started without a form, and pulses when a form closes within two days. Sessions whose window has already closed are listed separately as missed. Both extensions have to be loaded and enabled in Manage Extensions for the chip to come alive; without eForms it simply reads "off". Only a summary crosses between them (session title, time, signed or not, folder counts), never your form contents or your login.
+
 ## Caveat
 
 This works only on Google Chrome, meaning that you cannot use this on Safari, Firefox, or any other browser. This is due to their security restrictions. Furthermore, iOS and Android do not allow for any extension loading, so this is a laptop-only affair.
@@ -47,4 +49,4 @@ If you have any question, could you please re-read the instructions.
 
 ## Update Information
 
-Last updated: 3rd Sep 2026.
+Last updated: 26th Oct 2026.

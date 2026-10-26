@@ -5376,3 +5376,181 @@ html.mp-learnwidget p, html.mp-learnwidget span { color: var(--haze) !important;
 
 /* the flowing seam is the navbar's (.navbar.bg-uom::after) and is already covered by
    the global reduced-motion block; nothing on this host animates on its own. */
+
+/* ══════════════════════════════════════════════════════════════════════════
+   EFORMS COMPANION — outstanding attendance, read over the extension bridge
+   (decorateEforms() in content.js). A SEPARATE extension ("eForms") owns the
+   data; when both are enabled a status chip sits in the shared console header
+   just right of the clock (absolute, out of flow, exactly like the clock — the
+   pixel-matched side clusters are untouched) and opens a dropdown of sessions;
+   matching timetable event cards get a small badge. Green/amber/red here are
+   STATUS tones (signed / due / overdue), never cyan — --pulse stays reserved
+   for time/live. Nothing moves on hover. Every size is pinned per-element with
+   !important for the same reason as the clock: host tag-rules beat inheritance.
+   ═══════════════════════════════════════════════════════════════════════ */
+.navbar.bg-uom #mp-ef {
+  position: absolute !important; left: 50% !important; top: 50% !important;
+  transform: translateY(-50%) !important;      /* static — never changes on hover */
+  margin: 0 0 0 86px !important; padding: 0 !important; z-index: 2;
+  font-size: 12px !important; color: var(--haze) !important; text-align: left !important;
+}
+#mp-ef .mp-ef-chip {
+  display: inline-flex !important; align-items: center !important; gap: 6px !important;
+  margin: 0 !important; padding: 0 11px 0 9px !important; height: 30px !important;
+  border: 1px solid var(--edge) !important; border-radius: 999px !important;
+  background: var(--panel) !important; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  color: var(--haze) !important; font: 500 12px/1 var(--disp) !important;
+  letter-spacing: 0 !important; text-transform: none !important; cursor: pointer;
+  box-shadow: inset 0 0 14px rgba(139,92,246,.06) !important; outline: none;
+  transition: border-color .16s, box-shadow .16s, color .16s;
+}
+#mp-ef .mp-ef-chip:hover, #mp-ef .mp-ef-chip[aria-expanded="true"] {
+  border-color: var(--edge2) !important; color: var(--ice) !important;
+  box-shadow: 0 0 0 1px var(--edge2), 0 6px 22px -6px var(--glow), inset 0 0 18px rgba(139,92,246,.12) !important;
+}
+#mp-ef .mp-ef-chip:focus-visible { box-shadow: 0 0 0 2px var(--edge2) !important; }
+#mp-ef .mp-ef-ico { display: inline-flex !important; color: var(--orchid) !important; }
+#mp-ef .mp-ef-ico svg { width: 13px; height: 13px; }
+#mp-ef .mp-ef-dot {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--faint); box-shadow: 0 0 0 2px rgba(255,255,255,.06);
+}
+#mp-ef[data-level="green"] .mp-ef-dot { background: #3DDC97; box-shadow: 0 0 9px rgba(61,220,151,.75); }
+#mp-ef[data-level="amber"] .mp-ef-dot { background: #F5B942; box-shadow: 0 0 9px rgba(245,185,66,.75); }
+#mp-ef[data-level="red"]   .mp-ef-dot { background: #FF5C7A; box-shadow: 0 0 9px rgba(255,92,122,.75); }
+#mp-ef .mp-ef-k { font: 600 12px/1 var(--disp) !important; letter-spacing: .04em !important; color: var(--ice) !important; }
+#mp-ef .mp-ef-v { font: 400 11px/1 var(--mono) !important; letter-spacing: .02em !important; color: var(--haze) !important; }
+#mp-ef[data-level="green"] .mp-ef-v { color: #9FEFCB !important; }
+#mp-ef[data-level="amber"] .mp-ef-v { color: #FFD98A !important; }
+#mp-ef[data-level="red"]   .mp-ef-v { color: #FFB3C0 !important; }
+
+/* Overdue attendance — the window closes 7 days after the session — is the one
+   state that has to be loud: red surface on the chip, and a slow glow pulse when a
+   window closes within 48h. The pulse is box-shadow/opacity only (nothing moves) and
+   is dropped under prefers-reduced-motion. */
+#mp-ef[data-level="red"] .mp-ef-chip {
+  border-color: rgba(255, 92, 122, .55) !important;
+  background: linear-gradient(120deg, rgba(255, 92, 122, .16), rgba(255, 92, 122, .06)), var(--panel) !important;
+  color: var(--ice) !important;
+  box-shadow: 0 0 0 1px rgba(255, 92, 122, .25), 0 0 22px -6px rgba(255, 92, 122, .7) !important;
+}
+#mp-ef[data-urgent="1"] .mp-ef-chip { animation: mp-ef-urgent 1.8s ease-in-out infinite; }
+#mp-ef[data-urgent="1"] .mp-ef-dot { animation: mp-ef-urgent-dot 1.8s ease-in-out infinite; }
+@keyframes mp-ef-urgent {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(255, 92, 122, .25), 0 0 22px -6px rgba(255, 92, 122, .7); }
+  50%      { box-shadow: 0 0 0 2px rgba(255, 92, 122, .55), 0 0 34px -4px rgba(255, 92, 122, 1); }
+}
+@keyframes mp-ef-urgent-dot { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) {
+  #mp-ef[data-urgent="1"] .mp-ef-chip, #mp-ef[data-urgent="1"] .mp-ef-dot { animation: none; }
+}
+
+/* dropdown — hangs off the chip, inside the fixed navbar's own stacking context */
+#mp-ef .mp-ef-panel {
+  position: absolute; left: 0; top: calc(100% + 10px); z-index: 1100;
+  width: 420px; max-width: calc(100vw - 32px); box-sizing: border-box;
+  padding: 14px 16px !important;
+  background: var(--panel2) !important; border: 1px solid var(--edge2) !important; border-radius: 14px !important;
+  box-shadow: 0 18px 50px -14px rgba(0,0,0,.85), 0 0 0 1px rgba(160,130,255,.08), inset 0 1px 0 rgba(255,255,255,.04) !important;
+  color: var(--haze) !important; font: 400 12.5px/1.45 var(--disp) !important;
+  text-align: left !important; white-space: normal !important; letter-spacing: 0 !important; text-transform: none !important;
+}
+#mp-ef .mp-ef-panel[hidden] { display: none !important; }
+#mp-ef .mp-ef-head { display: flex !important; align-items: baseline !important; justify-content: space-between !important; gap: 10px; margin: 0 0 8px !important; }
+#mp-ef .mp-ef-title { font: 600 11px/1 var(--disp) !important; letter-spacing: .14em !important; text-transform: uppercase !important; color: var(--haze) !important; }
+#mp-ef .mp-ef-title em { font-style: normal !important; color: var(--orchid) !important; margin-left: 6px; }
+#mp-ef .mp-ef-sub { font: 400 11px/1.3 var(--mono) !important; color: var(--faint) !important; text-align: right; }
+#mp-ef .mp-ef-sub[data-level="green"] { color: #9FEFCB !important; }
+#mp-ef .mp-ef-sub[data-level="amber"] { color: #FFD98A !important; }
+#mp-ef .mp-ef-sub[data-level="red"]   { color: #FFB3C0 !important; }
+#mp-ef .mp-ef-alert {
+  margin: 6px 0 10px !important; padding: 9px 12px !important;
+  border: 1px solid rgba(255, 92, 122, .5) !important; border-left: 3px solid #FF5C7A !important;
+  border-radius: 10px !important; background: rgba(255, 92, 122, .1) !important;
+  font: 600 12px/1.4 var(--disp) !important; color: #FFB3C0 !important;
+}
+#mp-ef .mp-ef-alert-soft { border-color: rgba(245, 185, 66, .45) !important; border-left-color: #F5B942 !important; background: rgba(245, 185, 66, .08) !important; color: #FFD98A !important; }
+#mp-ef .mp-ef-group-red { color: #FF5C7A !important; }
+#mp-ef .mp-ef-row[data-state="due"] .mp-ef-note, #mp-ef .mp-ef-row[data-state="open"] .mp-ef-note { color: var(--haze) !important; }
+#mp-ef .mp-ef-row[data-urgent="1"] .mp-ef-note { color: #FF8FA6 !important; font-weight: 700 !important; }
+#mp-ef .mp-ef-bar {
+  grid-column: 2 / -1; display: block; height: 3px; margin-top: -1px; border-radius: 999px;
+  background: rgba(255, 255, 255, .08); overflow: hidden;
+}
+#mp-ef .mp-ef-bar i { display: block; height: 100%; width: var(--pct, 0%); border-radius: 999px; background: linear-gradient(90deg, #F5B942, #FF5C7A); }
+#mp-ef .mp-ef-row[data-state="overdue"] { background: rgba(255, 92, 122, .06); }
+#mp-ef .mp-ef-row[data-state="overdue"][data-urgent="1"] { background: rgba(255, 92, 122, .13); box-shadow: inset 0 0 0 1px rgba(255, 92, 122, .35); }
+#mp-ef .mp-ef-row[data-state="overdue"] .mp-ef-what { color: #FFD6DE !important; }
+#mp-ef .mp-ef-row[data-state="expired"] .mp-ef-mark, #mp-ef .mp-ef-row[data-state="expired"] .mp-ef-note { color: var(--faint) !important; }
+#mp-ef .mp-ef-row[data-state="expired"] .mp-ef-what { color: var(--haze) !important; text-decoration: line-through; }
+#mp-ef .mp-ef-group { margin: 10px 0 4px !important; font: 600 10px/1 var(--mono) !important; letter-spacing: .14em !important; text-transform: uppercase !important; color: var(--faint) !important; }
+#mp-ef ul.mp-ef-list { list-style: none !important; margin: 0 !important; padding: 0 !important; max-height: 264px; overflow: auto; }
+#mp-ef .mp-ef-row {
+  display: grid !important; grid-template-columns: 18px auto minmax(0, 1fr) auto; align-items: center; gap: 9px;
+  margin: 0 !important; padding: 7px 8px !important; border-radius: 9px; border-top: 1px solid var(--edge);
+  cursor: pointer; transition: background .16s;
+}
+#mp-ef .mp-ef-row:first-child { border-top: 0; }
+#mp-ef .mp-ef-row:hover { background: rgba(255,255,255,.05); }
+#mp-ef .mp-ef-mark { display: inline-flex; color: var(--haze); }
+#mp-ef .mp-ef-mark svg { width: 14px; height: 14px; display: block; }
+#mp-ef .mp-ef-row[data-state="done"]    .mp-ef-mark { color: #3DDC97; }
+#mp-ef .mp-ef-row[data-state="overdue"] .mp-ef-mark { color: #FF5C7A; }
+#mp-ef .mp-ef-row[data-state="due"]     .mp-ef-mark { color: #F5B942; }
+#mp-ef .mp-ef-when { font: 400 11px/1.2 var(--mono) !important; color: var(--haze) !important; white-space: nowrap; }
+#mp-ef .mp-ef-what { font: 500 12.5px/1.3 var(--disp) !important; color: var(--ice) !important; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#mp-ef .mp-ef-note { font: 400 9.5px/1 var(--mono) !important; letter-spacing: .1em !important; text-transform: uppercase !important; color: var(--faint) !important; white-space: nowrap; }
+#mp-ef .mp-ef-row[data-state="overdue"] .mp-ef-note { color: #FF8FA6 !important; font-weight: 700 !important; }
+#mp-ef .mp-ef-row[data-state="due"]     .mp-ef-note { color: #FFD98A !important; }
+#mp-ef .mp-ef-row[data-state="done"]    .mp-ef-note { color: #9FEFCB !important; }
+#mp-ef .mp-ef-done .mp-ef-row { opacity: .72; }
+#mp-ef .mp-ef-msg { margin: 4px 0 8px !important; font: 400 12.5px/1.5 var(--disp) !important; color: var(--haze) !important; }
+#mp-ef .mp-ef-msg b { color: var(--ice) !important; font-weight: 600 !important; }
+#mp-ef .mp-ef-mono { font-family: var(--mono) !important; font-size: 11px !important; color: var(--ice) !important; }
+#mp-ef .mp-ef-foot { display: flex !important; align-items: center !important; gap: 8px; margin-top: 12px !important; padding-top: 10px !important; border-top: 1px solid var(--edge); }
+#mp-ef .mp-ef-counts { flex: 1 1 auto; min-width: 0; font: 400 10.5px/1.35 var(--mono) !important; color: var(--faint) !important; }
+#mp-ef button.mp-ef-btn {
+  flex: none; margin: 0 !important; padding: 5px 12px !important; height: auto !important;
+  border: 1px solid var(--edge) !important; border-radius: 999px !important;
+  background: rgba(255,255,255,.04) !important; color: var(--haze) !important;
+  font: 500 11.5px/1.2 var(--disp) !important; letter-spacing: 0 !important; text-transform: none !important;
+  cursor: pointer; box-shadow: none !important; transition: border-color .16s, box-shadow .16s, color .16s;
+}
+#mp-ef button.mp-ef-btn:hover { border-color: var(--edge2) !important; color: var(--ice) !important; box-shadow: 0 0 16px -4px var(--glow) !important; }
+#mp-ef button.mp-ef-btn-go { border-color: color-mix(in srgb, var(--orchid) 45%, transparent) !important; color: var(--orchid) !important; }
+#mp-ef button.mp-ef-btn:disabled { opacity: .6; cursor: default; }
+/* the clock hides under 992px; the chip needs the band between clock and name */
+@media (max-width: 1120px) { .navbar.bg-uom #mp-ef { display: none !important; } }
+
+/* event-card badge: a small icon-only mark at the top-right of a matched card (the
+   time header is ~145px wide and its text fills most of it, so a worded pill
+   overlapped the hours — the state is spelled out in the badge's title instead) */
+.aj-week-event .mp-ef-badge {
+  position: absolute; right: 5px; top: 4px; z-index: 3;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 1px solid var(--edge2); background: rgba(12, 7, 22, .8);
+  color: var(--haze); pointer-events: none;
+}
+.mp-ef-badge .mp-glyph { display: inline-flex; }
+.mp-ef-badge svg { width: 9px; height: 9px; }
+.aj-week-event .mp-ef-badge[data-state="done"]    { color: #3DDC97; border-color: rgba(61,220,151,.55); box-shadow: 0 0 8px rgba(61,220,151,.35); }
+.aj-week-event .mp-ef-badge[data-state="due"]     { color: #F5B942; border-color: rgba(245,185,66,.6); box-shadow: 0 0 8px rgba(245,185,66,.4); }
+.aj-week-event .mp-ef-badge[data-state="expired"] { color: var(--faint); border-color: var(--edge); }
+/* an overdue session carries its countdown ("3d", "9h") — a pill, red, and pulsing
+   (glow only) once the window closes within 48h */
+.aj-week-event .mp-ef-badge[data-state="overdue"] {
+  width: auto; height: 16px; padding: 0 6px 0 4px; gap: 3px; border-radius: 999px;
+  color: #FFD6DE; border-color: rgba(255,92,122,.7); background: rgba(120, 20, 45, .85);
+  font: 700 9px/16px var(--mono); letter-spacing: .06em; text-transform: uppercase;
+  box-shadow: 0 0 10px rgba(255,92,122,.5);
+}
+.aj-week-event .mp-ef-badge[data-state="overdue"] .mp-glyph { color: #FF5C7A !important; }
+/* pinned: the card's own text rules (site + skin) otherwise recolour the countdown dark */
+.aj-week-event .mp-ef-badge .mp-ef-badge-t { color: #FFD6DE !important; font: inherit !important; }
+.aj-week-event .mp-ef-badge[data-urgent="1"] { animation: mp-ef-badge-urgent 1.8s ease-in-out infinite; }
+@keyframes mp-ef-badge-urgent {
+  0%, 100% { box-shadow: 0 0 10px rgba(255,92,122,.5); }
+  50%      { box-shadow: 0 0 0 2px rgba(255,92,122,.55), 0 0 16px rgba(255,92,122,.9); }
+}
+@media (prefers-reduced-motion: reduce) { .aj-week-event .mp-ef-badge[data-urgent="1"] { animation: none; } }

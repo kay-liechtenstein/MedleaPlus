@@ -4,3 +4,6 @@
 .vscode/
 .idea/
 CLAUDE.md
+# The eForms companion (a friend's separate extension, kept here only so the two
+# load side by side). It is their work and is never published from this repo.
+eForms/
